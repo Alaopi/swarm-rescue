@@ -82,3 +82,7 @@ class MyDroneRandom(DroneAbstract):
             return command_turn
         else:
             return command_straight
+
+        def iliasbaali: pass
+
+    def pascalvit()
