@@ -83,4 +83,5 @@ class MyDroneRandom(DroneAbstract):
         else:
             return command_straight
 
-    def 
+        def iliasbaali: pass
+    
