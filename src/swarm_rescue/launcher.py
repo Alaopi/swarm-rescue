@@ -62,6 +62,8 @@ class Launcher:
         my_gui = GuiSR(playground=playground,
                        the_map=my_map,
                        draw_interactive=False,
+                       draw_lidar= False,
+                       draw_semantic= True,
                        filename_video_capture=filename_video_capture)
 
         my_map.explored_map.reset()
