@@ -85,3 +85,4 @@ class MyDroneRandom(DroneAbstract):
 
         def iliasbaali: pass
     
+    def pascalvit()
