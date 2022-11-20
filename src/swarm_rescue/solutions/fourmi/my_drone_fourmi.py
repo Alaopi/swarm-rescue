@@ -32,6 +32,32 @@ class MyDroneRandom(DroneAbstract):
         """
         pass
 
+################### SIMON #########################
+    def follow_wall(self):
+        command_straight = {"forward": 1.0,
+                            "lateral": 0.0,
+                            "rotation": 0.0,
+                            "grasper": 0}
+
+        
+        touch_array = self.touch_acquisition()
+        if touch_array[0] == 0: # when the drone doesn't touch any wall i.e. case when he is lost
+            return self.lost
+        elif touch_array[0] == 1: # when the drone touches a wall, first the drone must put the wall on his right (rotation if necessary) and then go straight forward
+            if touch_array[4]==0: #which indices correspond to the ray at 90 degrees on the right ???
+                command_turn = {"forward": 0.0,
+                                "lateral": 0.0,
+                                "rotation": 0.1, #increase if too slow but it should ensure that we don't miss the moment when the wall is on the right
+                                "grasper": 0}
+                return command_turn
+            else :                          #wall is on the right
+                return command_straight
+        elif touch_array[0] == 2: # when the drone is in a corner
+            return self.left_corner
+
+
+################### END ###########################
+
 ################### ALEX ##########################
 
     def touch_acquisition(self):
@@ -39,7 +65,7 @@ class MyDroneRandom(DroneAbstract):
         Returns nb of touches (0|1|2) and Vector indicating triggered captors
         """
         if self.touch().get_sensor_values() is None:
-            zero = np.zeros(36)
+            zero = np.zeros(36)  
             return [0, zero]
 
         nb_touches = 0
