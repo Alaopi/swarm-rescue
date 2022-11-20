@@ -5,6 +5,7 @@ The Drone will move forward and turn for a random angle when an obstacle is hit
 import math
 import random
 from typing import Optional
+import numpy as np
 
 from spg_overlay.entities.drone_abstract import DroneAbstract
 from spg_overlay.utils.misc_data import MiscData
@@ -31,20 +32,49 @@ class MyDroneRandom(DroneAbstract):
         """
         pass
 
-    def process_touch_sensor(self):
-        """
-        Returns True if the drone hits an obstacle
+################### ALEX ##########################
+
+    def touch_acquisition(self):
+        """"
+        Returns nb of touches (0|1|2) and Vector indicating triggered captors
         """
         if self.touch().get_sensor_values() is None:
-            return False
+            zero = np.zeros(36)
+            return [0, zero]
 
-        touched = False
-        detection = max(self.touch().get_sensor_values())
+        nb_touches = 0
+        detection = self.touch().get_sensor_values()
 
-        if detection > 0.5:
-            touched = True
+        max = max(detection[0], detection[1])
+        second_max = min(detection[0], detection[1])
+        n = len(detection)
+        for i in range(2, n):
+            if detection[i] > mx:
+                second_max = mx
+                mx = detection[i]
+            elif detection[i] > second_max and \
+                    mx != detection[i]:
+                second_max = detection[i]
+            elif mx == second_max and \
+                    second_max != detection[i]:
+                second_max = detection[i]
 
-        return touched
+        for value in detection:
+            if value > 0.5 and value >= second_max:
+                value = 1
+                nb_touches += 1
+
+            else:
+                value = 0
+
+        if nb_touches > 2:
+            return [0, zero]
+
+        return [nb_touches, detection]
+
+
+################### END ###########################
+
 
     def control(self):
         """
