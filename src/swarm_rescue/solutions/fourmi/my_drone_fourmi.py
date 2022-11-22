@@ -101,6 +101,16 @@ class MyDroneRandom(DroneAbstract):
 
 ################### END ###########################
 
+################### ILIAS #########################
+    def lost(self):
+        command_right = {"forward": -0.1,
+                            "lateral": 1,
+                            "rotation": 0,
+                            "grasper": 0}
+        return command_right
+        
+
+################### END ###########################
 
     def control(self):
         """
