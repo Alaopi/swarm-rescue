@@ -61,6 +61,7 @@ class MyAntDrone(DroneAbstract):
 
 ################### ALEX ##########################
 
+
     def touch_acquisition(self):
         """"
         Returns nb of touches (0|1|2) and Vector indicating triggered captors
@@ -104,7 +105,6 @@ class MyAntDrone(DroneAbstract):
 
 ################### ILIAS #########################
 
-
     def lost(self):
         command_right = {"forward": -0.1,
                          "lateral": 1,
@@ -117,17 +117,16 @@ class MyAntDrone(DroneAbstract):
 
 ################### Nicolas #########################
 
-    def left_corner(self):
+    def left_corner(self, ang):
         command_left = {"forward": -0.1,
-                        "lateral": -1,
-                        "rotation ": 0,
+                        "lateral": 0,
+                        "rotation ": math.pi/2 - ang,
                         "grasper": 0}
 
         return command_left
 
 
 ################### END ###########################
-
 
     def control(self):
         """
