@@ -9,6 +9,7 @@ from maps.map_complete_01 import MyMapComplete01
 from maps.map_complete_02 import MyMapComplete02
 
 from solutions.my_drone_random import MyDroneRandom
+from solutions.fourmi.my_drone_fourmi import MyAntDrone
 
 
 class MyMap(MyMapIntermediate01):
@@ -53,17 +54,17 @@ class Launcher:
         team_number_str = str(self.team_info.team_number).zfill(2)
         if self.video_capture_enabled:
             filename_video_capture = self.save_data.path + \
-                                     "/screen_{}_rd{}_eq{}.avi".format(envir_str,
-                                                                       num_round_str,
-                                                                       team_number_str)
+                "/screen_{}_rd{}_eq{}.avi".format(envir_str,
+                                                  num_round_str,
+                                                  team_number_str)
         else:
             filename_video_capture = None
 
         my_gui = GuiSR(playground=playground,
                        the_map=my_map,
                        draw_interactive=False,
-                       draw_lidar= False,
-                       draw_semantic= True,
+                       draw_lidar=False,
+                       draw_semantic=True,
                        filename_video_capture=filename_video_capture)
 
         my_map.explored_map.reset()
@@ -102,13 +103,13 @@ class Launcher:
                       ", rescued number ={}/{}".format(
                           rescued_number, self.number_wounded_persons),
                       ", exploration score =", "{:.1f}%".format(
-                        score_exploration * 100),
-                      ", elapse time = {}/{} steps".format(
+                    score_exploration * 100),
+                    ", elapse time = {}/{} steps".format(
                           elapsed_time_step, self.time_step_limit),
-                      ", time to rescue all = {} steps".format(
+                    ", time to rescue all = {} steps".format(
                           rescued_all_time_step),
-                      ", final score =", "{:.2f}/100".format(final_score)
-                      )
+                    ", final score =", "{:.2f}/100".format(final_score)
+                )
                 if self.real_time_limit_reached:
                     print("\t\tThe real time limit of {}s is reached first.".format(
                         self.real_time_limit))
