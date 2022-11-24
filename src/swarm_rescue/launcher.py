@@ -16,7 +16,7 @@ class MyMap(MyMapIntermediate01):
     pass
 
 
-class MyDrone(MyDroneRandom):
+class MyDrone(MyAntDrone):
     pass
 
 

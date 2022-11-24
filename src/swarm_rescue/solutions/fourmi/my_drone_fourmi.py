@@ -36,7 +36,7 @@ class MyAntDrone(DroneAbstract):
     def follow_wall(self):
         command_straight = {"forward": 1.0,
                             "lateral": 0.0,
-                            "rotation": 0.0,
+                            "rotation": 0,
                             "grasper": 0}
 
         touch_array = self.touch_acquisition()
@@ -45,10 +45,10 @@ class MyAntDrone(DroneAbstract):
         # when the drone touches a wall, first the drone must put the wall on his right (rotation if necessary) and then go straight forward
         elif touch_array[0] == 1:
             # which indices correspond to the ray at 90 degrees on the right ???
-            if touch_array[4] == 0:
+            if touch_array[1][4] == 0:
                 command_turn = {"forward": 0.0,
                                 "lateral": 0.0,
-                                "rotation": 0.1,  # increase if too slow but it should ensure that we don't miss the moment when the wall is on the right
+                                "rotation": 1,  # increase if too slow but it should ensure that we don't miss the moment when the wall is on the right
                                 "grasper": 0}
                 return command_turn
             else:  # wall is on the right
@@ -72,16 +72,16 @@ class MyAntDrone(DroneAbstract):
         nb_touches = 0
         detection = self.touch().get_sensor_values()
 
-        max = max(detection[0], detection[1])
-        second_max = min(detection[0], detection[1])
+        max = np.maximum(detection[0], detection[1])
+        second_max = np.minimum(detection[0], detection[1])
         n = len(detection)
         for i in range(2, n):
-            if detection[i] > mx:
-                second_max = mx
-                mx = detection[i]
-            elif detection[i] > second_max and mx != detection[i]:
+            if detection[i] > max:
+                second_max = max
+                max = detection[i]
+            elif detection[i] > second_max and max != detection[i]:
                 second_max = detection[i]
-            elif mx == second_max and second_max != detection[i]:
+            elif max == second_max and second_max != detection[i]:
                 second_max = detection[i]
 
         for value in detection:
@@ -106,7 +106,7 @@ class MyAntDrone(DroneAbstract):
     def lost(self):
         command_right = {"forward": 0.0,  # freiner l'inertie
                          "lateral": 1.0,
-                         "rotation": -0.5,
+                         "rotation": 0,
                          "grasper": 0}
         return command_right
 
@@ -119,7 +119,7 @@ class MyAntDrone(DroneAbstract):
     def left_corner(self):
         command_left = {"forward": -0.1,
                         "lateral": -1.0,
-                        "rotation ": 0.5,
+                        "rotation ": 0,
                         "grasper": 0}
 
         return command_left
