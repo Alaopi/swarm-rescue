@@ -21,10 +21,6 @@ class MyAntDrone(DroneAbstract):
                          misc_data=misc_data,
                          should_display_lidar=False,
                          **kwargs)
-        self.counterStraight = 0
-        self.angleStopTurning = random.uniform(-math.pi, math.pi)
-        self.distStopStraight = random.uniform(10, 50)
-        self.isTurning = False
 
     def define_message_for_all(self):
         """
@@ -55,6 +51,8 @@ class MyAntDrone(DroneAbstract):
                 return command_straight
         elif touch_array[0] == 2:  # when the drone is in a corner
             return self.left_corner()
+
+        pass
 
 
 ################### END ###########################
