@@ -41,7 +41,7 @@ class MyAntDrone(DroneAbstract):
 
         touch_array = self.touch_acquisition()
         if touch_array[0] == 0:  # when the drone doesn't touch any wall i.e. case when he is lost
-            return self.lost
+            return self.lost()
         # when the drone touches a wall, first the drone must put the wall on his right (rotation if necessary) and then go straight forward
         elif touch_array[0] == 1:
             # which indices correspond to the ray at 90 degrees on the right ???
@@ -54,20 +54,19 @@ class MyAntDrone(DroneAbstract):
             else:  # wall is on the right
                 return command_straight
         elif touch_array[0] == 2:  # when the drone is in a corner
-            return self.left_corner
+            return self.left_corner()
 
 
 ################### END ###########################
 
 ################### ALEX ##########################
 
-
     def touch_acquisition(self):
         """"
         Returns nb of touches (0|1|2) and Vector indicating triggered captors
         """
         if self.touch().get_sensor_values() is None:
-            zero = np.zeros(36)
+            zero = np.zeros(12)
             return [0, zero]
 
         nb_touches = 0
@@ -80,11 +79,9 @@ class MyAntDrone(DroneAbstract):
             if detection[i] > mx:
                 second_max = mx
                 mx = detection[i]
-            elif detection[i] > second_max and \
-                    mx != detection[i]:
+            elif detection[i] > second_max and mx != detection[i]:
                 second_max = detection[i]
-            elif mx == second_max and \
-                    second_max != detection[i]:
+            elif mx == second_max and second_max != detection[i]:
                 second_max = detection[i]
 
         for value in detection:
@@ -105,10 +102,11 @@ class MyAntDrone(DroneAbstract):
 
 ################### ILIAS #########################
 
+
     def lost(self):
-        command_right = {"forward": -0.1,
-                         "lateral": 1,
-                         "rotation": 0,
+        command_right = {"forward": 0.0,  # freiner l'inertie
+                         "lateral": 1.0,
+                         "rotation": -0.5,
                          "grasper": 0}
         return command_right
 
@@ -117,10 +115,11 @@ class MyAntDrone(DroneAbstract):
 
 ################### Nicolas #########################
 
-    def left_corner(self, ang):
+
+    def left_corner(self):
         command_left = {"forward": -0.1,
-                        "lateral": 0,
-                        "rotation ": math.pi/2 - ang,
+                        "lateral": -1.0,
+                        "rotation ": 0.5,
                         "grasper": 0}
 
         return command_left
@@ -128,39 +127,9 @@ class MyAntDrone(DroneAbstract):
 
 ################### END ###########################
 
+
     def control(self):
         """
-        The Drone will move forward and turn for a random angle when an obstacle is hit
+        The Drone will move like in BE Ant
         """
-        command_straight = {"forward": 1.0,
-                            "lateral": 0.0,
-                            "rotation": 0.0,
-                            "grasper": 0}
-
-        command_turn = {"forward": 0.0,
-                        "lateral": 0.0,
-                        "rotation": 1.0,
-                        "grasper": 0}
-
-        touched = self.process_touch_sensor()
-
-        self.counterStraight += 1
-
-        if touched and not self.isTurning and self.counterStraight > self.distStopStraight:
-            self.isTurning = True
-            self.angleStopTurning = random.uniform(-math.pi, math.pi)
-
-        measured_angle = 0
-        if self.measured_compass_angle() is not None:
-            measured_angle = self.measured_compass_angle()
-
-        diff_angle = normalize_angle(self.angleStopTurning - measured_angle)
-        if self.isTurning and abs(diff_angle) < 0.2:
-            self.isTurning = False
-            self.counterStraight = 0
-            self.distStopStraight = random.uniform(10, 50)
-
-        if self.isTurning:
-            return command_turn
-        else:
-            return command_straight
+        return self.follow_wall()
