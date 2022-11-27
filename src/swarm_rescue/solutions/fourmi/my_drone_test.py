@@ -53,7 +53,7 @@ class MyDroneTest(DroneAbstract):
                 second_max = detection[i]
 
         for i in range(n):
-            if detection[i] > 0.999 and detection[i] >= second_max:
+            if detection[i] > 0.99 and detection[i] >= second_max:
                 detection[i] = 1
                 nb_touches += 1
 
@@ -72,24 +72,24 @@ class MyDroneTest(DroneAbstract):
         return detection
 
     def control(self):
-        command_straight = {"forward": 0.5,
+        command_straight = {"forward": 1.0,
                             "lateral": 0.0,
                             "rotation": 0.0,
                             "grasper": 0}
 
-        command_right = {"forward": 0.0,  # freiner l'inertie
-                         "lateral": -0.5,
-                         "rotation": -0.1,
+        command_right = {"forward": 0.5,  # freiner l'inertie
+                         "lateral": -0.9,
+                         "rotation": -0.2,
                          "grasper": 0}
 
-        command_turn = {"forward": 0.0,
+        command_turn = {"forward": 1.0,
                         "lateral": 0.0,
                         "rotation": 1.0,  # increase if too slow but it should ensure that we don't miss the moment when the wall is on the right
                         "grasper": 0}
 
-        command_left = {"forward": -0.1,
-                        "lateral": 1.0,
-                        "rotation ": 0.0,
+        command_left = {"forward": 0.2,
+                        "lateral": 0.0,
+                        "rotation": 1.0,
                         "grasper": 0}
 
         touch_array = self.touch_acquisition()
@@ -105,7 +105,7 @@ class MyDroneTest(DroneAbstract):
             if touch_array[2] + touch_array[3] + touch_array[4] >= 1:
                 return command_straight
 
-            else:  # wall is on the right
+            else:
                 return command_turn
         elif touch_array[-1] == 2.0:  # when the drone is in a corner
             return command_left
