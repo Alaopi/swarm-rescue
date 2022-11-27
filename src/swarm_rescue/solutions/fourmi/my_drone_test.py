@@ -3,16 +3,31 @@ Simple random controller
 The Drone will move forward and turn for a random angle when an obstacle is hit
 """
 import math
+import os
+import sys
 import random
-from typing import Optional
+from typing import Optional, List, Type
 import numpy as np
+from enum import Enum
 
 from spg_overlay.entities.drone_abstract import DroneAbstract
+from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
+from spg_overlay.entities.rescue_center import RescueCenter, wounded_rescue_center_collision
+from spg_overlay.entities.wounded_person import WoundedPerson
 from spg_overlay.utils.misc_data import MiscData
 from spg_overlay.utils.utils import normalize_angle
 
 
 class MyDroneTest(DroneAbstract):
+    class Activity(Enum):
+        """
+        All the states of the drone as a state machine
+        """
+        SEARCHING_WOUNDED = 1
+        GRASPING_WOUNDED = 2
+        SEARCHING_RESCUE_CENTER = 3
+        DROPPING_AT_RESCUE_CENTER = 4
+
     def __init__(self,
                  identifier: Optional[int] = None,
                  misc_data: Optional[MiscData] = None,
@@ -21,6 +36,7 @@ class MyDroneTest(DroneAbstract):
                          misc_data=misc_data,
                          should_display_lidar=False,
                          **kwargs)
+        self.state = self.Activity.SEARCHING_WOUNDED
 
     def define_message_for_all(self):
         """
@@ -72,6 +88,59 @@ class MyDroneTest(DroneAbstract):
         return detection
 
     def control(self):
+
+        found_wounded, found_rescue_center, command_semantic = self.process_semantic_sensor(
+            self.semantic())
+
+        #############
+        # TRANSITIONS OF THE STATE MACHINE
+        #############
+
+        if self.state is self.Activity.SEARCHING_WOUNDED and found_wounded:
+            self.state = self.Activity.GRASPING_WOUNDED
+
+        elif self.state is self.Activity.GRASPING_WOUNDED and self.base.grasper.grasped_entities:
+            self.state = self.state.SEARCHING_RESCUE_CENTER
+
+        elif self.state is self.Activity.GRASPING_WOUNDED and not found_wounded:
+            self.state = self.state.SEARCHING_WOUNDED
+
+        elif self.state is self.Activity.SEARCHING_RESCUE_CENTER and found_rescue_center:
+            self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
+
+        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
+            self.state = self.Activity.SEARCHING_RESCUE_CENTER
+
+        print("state: {}, can_grasp: {}, grasped entities: {}, found wounded: {}".format(self.state.name,
+                                                                                         self.base.grasper.can_grasp,
+                                                                                         self.base.grasper.grasped_entities,
+                                                                                         found_wounded))
+
+        ##########
+        # COMMANDS FOR EACH STATE
+        # Searching by following wall, but when a rescue center or wounded person is detected, we use a special command
+        ##########
+
+        if self.state is self.Activity.SEARCHING_WOUNDED:
+            command = self.control_wall()
+            command["grasper"] = 0
+
+        elif self.state is self.Activity.GRASPING_WOUNDED:
+            command = command_semantic
+            command["grasper"] = 1
+
+        elif self.state is self.Activity.SEARCHING_RESCUE_CENTER:
+            command = self.control_wall()
+            command["grasper"] = 1
+
+        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
+            command = command_semantic
+            command["grasper"] = 1
+
+        return command
+
+    def control_wall(self):
+
         command_straight = {"forward": 1.0,
                             "lateral": 0.0,
                             "rotation": 0.0,
@@ -79,7 +148,7 @@ class MyDroneTest(DroneAbstract):
 
         command_right = {"forward": 0.5,  # freiner l'inertie
                          "lateral": -0.9,
-                         "rotation": -0.2,
+                         "rotation": -0.4,
                          "grasper": 0}
 
         command_turn = {"forward": 1.0,
@@ -102,10 +171,69 @@ class MyDroneTest(DroneAbstract):
         # when the drone touches a wall, first the drone must put the wall on his right (rotation if necessary) and then go straight forward
         elif touch_array[-1] == 1.0:
             # which indices correspond to the ray at 90 degrees on the right ???
-            if touch_array[2] + touch_array[3] + touch_array[4] >= 1:
+            if touch_array[1] + touch_array[2] + touch_array[3] >= 1:
                 return command_straight
 
             else:
                 return command_turn
         elif touch_array[-1] == 2.0:  # when the drone is in a corner
             return command_left
+
+    def process_semantic_sensor(self, the_semantic_sensor):
+        """
+        According to his state in the state machine, the Drone will move towards a wound person or the rescue center
+        """
+        command = {"forward": 0.8,
+                   "lateral": 0.0,
+                   "rotation": 0.0}
+        angular_vel_controller_max = 1.0
+
+        detection_semantic = the_semantic_sensor.get_sensor_values()
+        best_angle = 1000
+
+        found_wounded = False
+        is_near_wounded = False
+        if (self.state is self.Activity.SEARCHING_WOUNDED
+            or self.state is self.Activity.GRASPING_WOUNDED) \
+                and detection_semantic is not None:
+            for data in detection_semantic:
+                # If the wounded person detected is held by nobody
+                if data.entity_type == DroneSemanticSensor.TypeEntity.WOUNDED_PERSON and not data.grasped:
+                    found_wounded = True
+                    best_angle = data.angle
+                    is_near_wounded = (data.distance < 45)
+
+        is_near_rescue = False
+        found_rescue_center = False
+        if (self.state is self.Activity.SEARCHING_RESCUE_CENTER
+            or self.state is self.Activity.DROPPING_AT_RESCUE_CENTER) \
+                and detection_semantic:
+            for data in detection_semantic:
+                if data.entity_type == DroneSemanticSensor.TypeEntity.RESCUE_CENTER:
+                    found_rescue_center = True
+                    best_angle = data.angle
+                    is_near_rescue = (data.distance < 40)
+
+        if found_rescue_center or found_wounded:
+            # simple P controller
+            # The robot will turn until best_angle is 0
+            kp = 2.0
+            a = kp * best_angle
+            a = min(a, 1.0)
+            a = max(a, -1.0)
+            command["rotation"] = a * angular_vel_controller_max
+
+            # reduce speed if we need to turn a lot
+            if abs(a) == 1:
+                command["forward"] = 0.8
+
+        if found_rescue_center and is_near_rescue:
+            command["forward"] = 0
+            command["rotation"] = -1.0
+
+        if found_wounded and is_near_wounded:
+            command["forward"] = 0
+            command["rotation"] = -1.0
+            print("roue libre")
+
+        return found_wounded, found_rescue_center, command
