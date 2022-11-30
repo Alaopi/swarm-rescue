@@ -1,11 +1,8 @@
 """
-Simple random controller
-The Drone will move forward and turn for a random angle when an obstacle is hit
+First iteration of Drone_Wall
+The Drone will follow the walls to find injured
 """
-import math
-import os
-import sys
-import random
+
 from typing import Optional, List, Type
 import numpy as np
 from enum import Enum
@@ -27,6 +24,7 @@ class MyDroneTest(DroneAbstract):
         GRASPING_WOUNDED = 2
         SEARCHING_RESCUE_CENTER = 3
         DROPPING_AT_RESCUE_CENTER = 4
+        INITIALIZING = 5
 
     def __init__(self,
                  identifier: Optional[int] = None,
@@ -36,7 +34,8 @@ class MyDroneTest(DroneAbstract):
                          misc_data=misc_data,
                          should_display_lidar=False,
                          **kwargs)
-        self.state = self.Activity.SEARCHING_WOUNDED
+        self.state = self.Activity.INITIALIZING
+        self.initialized = False
 
     def define_message_for_all(self):
         """
@@ -56,6 +55,7 @@ class MyDroneTest(DroneAbstract):
         nb_touches = 0
         detection = self.touch().get_sensor_values()
 
+        # Getting the two highest values from detection
         max = np.maximum(detection[0], detection[1])
         second_max = np.minimum(detection[0], detection[1])
         n = len(detection)
@@ -68,14 +68,18 @@ class MyDroneTest(DroneAbstract):
             elif max == second_max and second_max != detection[i]:
                 second_max = detection[i]
 
+        # The two highest values from the list are changed to 1 if they are higher than threshold
+        # Other values are changed to 0
         for i in range(n):
-            if detection[i] > 0.99 and detection[i] >= second_max:
+            threshold = 0.95
+            if detection[i] > threshold and detection[i] >= second_max:
                 detection[i] = 1
                 nb_touches += 1
 
             else:
                 detection[i] = 0
 
+        # Consecutive 1s are counted as only one touch
         for i in range(n-1):
             if detection[i] == 1 and detection[i+1] == 1:
                 detection[i] = 0
@@ -84,6 +88,7 @@ class MyDroneTest(DroneAbstract):
         if nb_touches > 2:
             return zeros
 
+        # Number of touches is set as last value of the list (last value not useful)
         detection[-1] = nb_touches
         return detection
 
@@ -95,6 +100,12 @@ class MyDroneTest(DroneAbstract):
         #############
         # TRANSITIONS OF THE STATE MACHINE
         #############
+
+        if self.state is self.Activity.INITIALIZING and found_wounded:
+            self.state = self.Activity.GRASPING_WOUNDED
+
+        if self.state is self.Activity.INITIALIZING and self.initialized:
+            self.state = self.Activity.SEARCHING_WOUNDED
 
         if self.state is self.Activity.SEARCHING_WOUNDED and found_wounded:
             self.state = self.Activity.GRASPING_WOUNDED
@@ -111,15 +122,22 @@ class MyDroneTest(DroneAbstract):
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
             self.state = self.Activity.SEARCHING_RESCUE_CENTER
 
-        print("state: {}, can_grasp: {}, grasped entities: {}, found wounded: {}".format(self.state.name,
-                                                                                         self.base.grasper.can_grasp,
-                                                                                         self.base.grasper.grasped_entities,
-                                                                                         found_wounded))
+        # print("state: {}, can_grasp: {}, grasped entities: {}, found wounded: {}".format(self.state.name,
+        #                                                                                self.base.grasper.can_grasp,
+        #                                                                                self.base.grasper.grasped_entities,
+        #                                                                                found_wounded))
 
         ##########
         # COMMANDS FOR EACH STATE
         # Searching by following wall, but when a rescue center or wounded person is detected, we use a special command
         ##########
+
+        if self.state is self.Activity.INITIALIZING:
+            command = self.control_wall()
+            command = {"forward": 1.0,
+                       "lateral": 0.0,
+                       "rotation": 0.0,
+                       "grasper": 0}
 
         if self.state is self.Activity.SEARCHING_WOUNDED:
             command = self.control_wall()
@@ -162,8 +180,9 @@ class MyDroneTest(DroneAbstract):
                         "grasper": 0}
 
         touch_array = self.touch_acquisition()
-        print(touch_array)
-        print(touch_array[-1])
+
+        # Initialization -> Go straight to wall
+
         # when the drone doesn't touch any wall i.e. case when he is lost
         if touch_array[-1] == 0.0:
             return command_right
@@ -171,12 +190,14 @@ class MyDroneTest(DroneAbstract):
         # when the drone touches a wall, first the drone must put the wall on his right (rotation if necessary) and then go straight forward
         elif touch_array[-1] == 1.0:
             # which indices correspond to the ray at 90 degrees on the right ???
+            self.initialized = True
             if touch_array[1] + touch_array[2] + touch_array[3] >= 1:
                 return command_straight
 
             else:
                 return command_turn
         elif touch_array[-1] == 2.0:  # when the drone is in a corner
+            self.initialized = True
             return command_left
 
     def process_semantic_sensor(self, the_semantic_sensor):
@@ -186,6 +207,7 @@ class MyDroneTest(DroneAbstract):
         command = {"forward": 0.8,
                    "lateral": 0.0,
                    "rotation": 0.0}
+
         angular_vel_controller_max = 1.0
 
         detection_semantic = the_semantic_sensor.get_sensor_values()
@@ -197,11 +219,11 @@ class MyDroneTest(DroneAbstract):
             or self.state is self.Activity.GRASPING_WOUNDED) \
                 and detection_semantic is not None:
             for data in detection_semantic:
-                # If the wounded person detected is held by nobody
                 if data.entity_type == DroneSemanticSensor.TypeEntity.WOUNDED_PERSON and not data.grasped:
                     found_wounded = True
+                    self.initialized = True
                     best_angle = data.angle
-                    is_near_wounded = (data.distance < 45)
+                    is_near_wounded = (data.distance < 50)
 
         is_near_rescue = False
         found_rescue_center = False
@@ -212,7 +234,7 @@ class MyDroneTest(DroneAbstract):
                 if data.entity_type == DroneSemanticSensor.TypeEntity.RESCUE_CENTER:
                     found_rescue_center = True
                     best_angle = data.angle
-                    is_near_rescue = (data.distance < 40)
+                    is_near_rescue = (data.distance < 70)
 
         if found_rescue_center or found_wounded:
             # simple P controller
@@ -223,10 +245,6 @@ class MyDroneTest(DroneAbstract):
             a = max(a, -1.0)
             command["rotation"] = a * angular_vel_controller_max
 
-            # reduce speed if we need to turn a lot
-            if abs(a) == 1:
-                command["forward"] = 0.8
-
         if found_rescue_center and is_near_rescue:
             command["forward"] = 0
             command["rotation"] = -1.0
@@ -234,6 +252,5 @@ class MyDroneTest(DroneAbstract):
         if found_wounded and is_near_wounded:
             command["forward"] = 0
             command["rotation"] = -1.0
-            print("roue libre")
 
         return found_wounded, found_rescue_center, command

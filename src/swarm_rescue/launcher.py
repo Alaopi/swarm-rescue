@@ -9,14 +9,14 @@ from maps.map_complete_01 import MyMapComplete01
 from maps.map_complete_02 import MyMapComplete02
 
 from solutions.my_drone_random import MyDroneRandom
-from solutions.fourmi.my_drone_fourmi import MyAntDrone
+from solutions.fourmi.my_drone_test import MyDroneTest
 
 
 class MyMap(MyMapIntermediate01):
     pass
 
 
-class MyDrone(MyAntDrone):
+class MyDrone(MyDroneTest):
     pass
 
 

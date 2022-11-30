@@ -32,7 +32,7 @@ class MyAntDrone(DroneAbstract):
     def follow_wall(self):
         command_straight = {"forward": 1.0,
                             "lateral": 0.0,
-                            "rotation": 0,
+                            "rotation": 0.0,
                             "grasper": 0}
 
         touch_array = self.touch_acquisition()
