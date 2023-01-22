@@ -2,6 +2,7 @@
 Simple random controller
 The Drone will move forward and turn for a random angle when an obstacle is hit
 """
+from copy import deepcopy
 import math
 import random
 from enum import Enum
@@ -11,6 +12,7 @@ import numpy as np
 from spg_overlay.entities.drone_abstract import DroneAbstract
 from spg_overlay.utils.misc_data import MiscData
 from spg_overlay.utils.utils import normalize_angle
+from spg.src.spg.agent.communicator import Communicator
 
 
 class Vector:
@@ -55,12 +57,73 @@ class MyForceDrone(DroneAbstract):
         DROPPING_AT_RESCUE_CENTER = 4
 
 ################### SIMON #########################
-    def receive_maps():
-        pass
+    def process_communication_sensor(self):
+        found_drone = False
 
-    def share_map():
-        pass
+        if self.communicator:
+            received_messages = self.communicator.received_messages
+            nearest_drone_coordinate1 = (
+                self.measured_gps_position(), self.measured_compass_angle())
+            nearest_drone_coordinate2 = deepcopy(nearest_drone_coordinate1)
+            (nearest_position1, nearest_angle1) = nearest_drone_coordinate1
+            (nearest_position2, nearest_angle2) = nearest_drone_coordinate2
 
+            min_dist1 = 10000
+            min_dist2 = 10000
+            diff_angle = 0
+
+            # Search the two nearest drones around
+            for msg in received_messages:
+                message = msg[1]
+                coordinate = message[1]
+                (other_position, other_angle) = coordinate
+
+                dx = other_position[0] - self.measured_gps_position()[0]
+                dy = other_position[1] - self.measured_gps_position()[1]
+                distance = math.sqrt(dx ** 2 + dy ** 2)
+
+                # if another drone is near
+                if distance < min_dist1:
+                    min_dist2 = min_dist1
+                    min_dist1 = distance
+                    nearest_drone_coordinate2 = nearest_drone_coordinate1
+                    nearest_drone_coordinate1 = coordinate
+                    found_drone = True
+                elif distance < min_dist2 and distance != min_dist1:
+                    min_dist2 = distance
+                    nearest_drone_coordinate2 = coordinate
+
+            if not found_drone:
+                return found_drone
+
+        return found_drone
+
+    def receive_maps(self):
+
+        if self.communicator:
+           received_messages = self.communicator.received_messages
+           found_drone = process_communication_sensor(self)
+           for msg in received_messages:
+            sender_id = msg[0]
+            sender_position = msg[1]
+            new_map = msg[2]
+            l,c= length(new_map)
+            for i in range(l):
+                for j in range(c):
+                    if self.map[i][j] ==0 and new_map[i][j] !=0 : # actualise la map (remplace si inconnu)
+                        self.map[i][j] = new_map[i][j]
+                        # voir si on ajoute la position des drones ? map[i][j][]
+        return(self.map)   
+
+    def share_map(self):
+        msg_data = (self.identifier,(self.measured_gps_position(), self.measured_compass_angle()), self.map) ## à voir comment est defini self.map
+        found = process_communication_sensor(self)
+        if found:
+            send(self,msg_data)
+            return True
+        else:
+            return False
+        
 
 ################### END ###########################
 
