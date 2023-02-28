@@ -42,10 +42,9 @@ class MyForceDrone(DroneAbstract):
         self.drone_map = np.zeros(self.size_area)
 
     def define_message_for_all(self):
-        """
-        Here, we don't need communication...
-        """
-        pass
+        msg_data = (self.identifier,(self.measured_gps_position(), self.measured_compass_angle()), self.map) ## à voir comment est defini self.map
+        #found = self.process_communication_sensor(self)
+        return msg_data
 
     class Activity(Enum):  # Possible values of self.state which gives the current action of the drone
         """
@@ -101,28 +100,29 @@ class MyForceDrone(DroneAbstract):
     def receive_maps(self):
 
         if self.communicator:
-           received_messages = self.communicator.received_messages
-           found_drone = process_communication_sensor(self)
-           for msg in received_messages:
-            sender_id = msg[0]
-            sender_position = msg[1]
-            new_map = msg[2]
-            l,c= length(new_map)
-            for i in range(l):
-                for j in range(c):
-                    if self.map[i][j] ==0 and new_map[i][j] !=0 : # actualise la map (remplace si inconnu)
-                        self.map[i][j] = new_map[i][j]
-                        # voir si on ajoute la position des drones ? map[i][j][]
+            received_messages = self.communicator.received_messages
+            found_drone = self.process_communication_sensor(self)
+            for msg in received_messages:
+                sender_id = msg[0]
+                sender_position = msg[1]
+                new_map = msg[2]
+                l,c= len(new_map),len(new_map[0])
+                for i in range(l):
+                    for j in range(c):
+                        if self.map[i][j] == self.MapState.UNKNOWN and new_map[i][j] != self.MapState.UNKNOWN : # actualise la map (remplace si inconnu)
+                            self.map[i][j] = new_map[i][j]
+                            # voir si on ajoute la position des drones ? map[i][j][]
         return(self.map)   
 
-    def share_map(self):
-        msg_data = (self.identifier,(self.measured_gps_position(), self.measured_compass_angle()), self.map) ## à voir comment est defini self.map
-        found = process_communication_sensor(self)
-        if found:
-            send(self,msg_data)
-            return True
-        else:
-            return False
+#Done by "define_message_for_all"
+   # def share_map(self):
+    #    msg_data = (self.identifier,(self.measured_gps_position(), self.measured_compass_angle()), self.map) ## à voir comment est defini self.map
+     #   found = self.process_communication_sensor(self)
+      #  if found:
+       #     send(self,msg_data)
+        #    return True
+        #else:
+         #   return False
         
 
 ################### END ###########################
@@ -138,17 +138,17 @@ class MyForceDrone(DroneAbstract):
 
     def wall_force(distance, angle):
 
-        amplitude = 1
+        amplitude = 1/distance
         f = Vector(amplitude, angle-np.pi)  # repulsive : angle-Pi
         return f
 
     def drone_force(distance, angle):
-        amplitude = 1
+        amplitude = 1/distance
         f = Vector(amplitude, angle-np.pi)  # repulsive : angle-pi
         return f
 
     def wounded_force(distance, angle):
-        amplitude = 1
+        amplitude = 1/distance
         f = Vector(amplitude, angle)  # attractive : angle
         return f
 
@@ -157,7 +157,7 @@ class MyForceDrone(DroneAbstract):
         for data in detection_semantic:
             match data.entity_type:
                 case MyForceDrone.TypeEntity.WOUNDED_PERSON:
-                    # if the detected person is not grabbed, we are attracted by it, otherwise there is another drone that creates a repulsive force
+                    # if the detected person is not grasped, we are attracted by it, otherwise there is another drone that creates a repulsive force
                     if not data.grasped and self.state is MyForceDrone.Activity.SEARCHING_WOUNDED:
                         forces.append(self.wounded_force(
                             data.distance, data.angle))
@@ -200,8 +200,53 @@ class MyForceDrone(DroneAbstract):
         NO_COM = 7
 
     def update_map(self, detection_semantic):
+        pos_x,pos_y = self.measured_gps_position()
+        pos_x = round(pos_x) #index of the drone in the map
+        pos_y = round(pos_y)
+        for data in detection_semantic:
+            angle = self.measured_compass_angle + data.angle ##check signs....................................................................................
+            dx = round(data.distance*np.cos(angle))
+            dy = round(data.distance*np.sin(angle))
+            data_x = pos_x + dx
+            data_y = pos_y + dy
+            match data.entity_type:
+                case MyForceDrone.TypeEntity.WOUNDED_PERSON:
+                    if not data.grasped :
+                        if self.map[data_x][data_y] == self.MapState.UNKNOWN : 
+                            self.map[data_x][data_y] = self.MapState.WOUNDED
+                    else :
+                        self.map[data_x][data_y] = self.MapState.EMPTY
 
-        pass
+                case MyForceDrone.TypeEntity.RESCUE_CENTER:
+                    if self.map[data_x][data_y] == self.MapState.UNKNOWN : 
+                        self.map[data_x][data_y] = self.MapState.INIT_RESCUE
+
+                case MyForceDrone.TypeEntity.WALL:
+                    pass
+
+                case MyForceDrone.TypeEntity.DRONE:
+                    pass
+            
+            #Algo to write empty in all the cases crossed by the sensor's ray
+            X = pos_x
+            Y = pos_y
+            stepX = np.sign(dx)
+            stepY = np.sign(dy)
+            tMaxX = 1/(2*dx)
+            tMaxY = 1/(2*dy)
+            tDeltaX = 1/dx
+            tDeltaY = 1/dy
+            while(X<data_x and Y<data_y):
+                if(tMaxX < tMaxY):
+                    tMaxX += tDeltaX
+                    X+=stepX
+                else :
+                    tMaxY += tDeltaY
+                    Y+=stepY
+                self.map[X][Y] = self.MapState.EMPTY
+
+        return
+    
 
 ################### END ###########################
 
@@ -216,9 +261,8 @@ class MyForceDrone(DroneAbstract):
 
         detection_semantic = self.semantic.get_sensor_values()
 
-        ##TODO : share_map
-        ##TODO : receive_maps
-        ##TODO : update_map(detection_semantic)
+        self.receive_maps()
+        self.update_map(detection_semantic)
         match self.state:
             case MyForceDrone.Activity.SEARCHING_WOUNDED:
                 force = self.total_force()
