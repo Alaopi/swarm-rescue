@@ -4,19 +4,21 @@ from spg_overlay.utils.screen_recorder import ScreenRecorder
 from spg_overlay.utils.team_info import TeamInfo
 from spg_overlay.gui_map.gui_sr import GuiSR
 
+from maps.map_random import MyMapRandom
 from maps.map_intermediate_01 import MyMapIntermediate01
 from maps.map_complete_01 import MyMapComplete01
 from maps.map_complete_02 import MyMapComplete02
 
 from solutions.my_drone_random import MyDroneRandom
-from solutions.fourmi.my_drone_test import MyDroneTest
+from solutions.forces.my_drone_forces import MyForceDrone
+from solutions.fourmi.my_drone_fourmi import MyAntDrone
 
 
 class MyMap(MyMapIntermediate01):
     pass
 
 
-class MyDrone(MyDroneTest):
+class MyDrone(MyForceDrone):
     pass
 
 

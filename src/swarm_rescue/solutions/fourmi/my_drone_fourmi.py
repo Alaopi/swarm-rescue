@@ -21,6 +21,7 @@ class MyAntDrone(DroneAbstract):
                          misc_data=misc_data,
                          should_display_lidar=False,
                          **kwargs)
+        self.count = 0
 
     def define_message_for_all(self):
         """
@@ -91,7 +92,7 @@ class MyAntDrone(DroneAbstract):
                 value = 0
 
         if nb_touches > 2:
-            return [0, zero]
+            return [0, "zero"]
 
         return [nb_touches, detection]
 
@@ -117,17 +118,21 @@ class MyAntDrone(DroneAbstract):
     def left_corner(self):
         command_left = {"forward": -0.1,
                         "lateral": -1.0,
-                        "rotation ": 0,
+                        "rotation": 0,
                         "grasper": 0}
 
         return command_left
 
 
 ################### END ###########################
-
+    
 
     def control(self):
         """
         The Drone will move like in BE Ant
         """
+        if (self.count< 2):
+            print("detection_semantic = ",self.semantic().get_sensor_values())
+            print("gps = ", self.measured_gps_position())
+            self.count+=1
         return self.follow_wall()
