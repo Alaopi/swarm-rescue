@@ -1,7 +1,0 @@
-1 - command init_wall() --> ???
-2 - command left_corner() --> Nicolas
-3 - command lost() --> Ilias
-4 - command follow_wall(acquisition) --> Simon
-5 - array touch_acquisition() --> Alex
-6 - command injured_spotted() --> ???
-7 - my_drone_fourmi.py

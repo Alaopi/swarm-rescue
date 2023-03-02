@@ -5,6 +5,7 @@ To move the drone, you have to click on the map, then use the arrows on the keyb
 
 import os
 import sys
+import numpy as np
 from typing import List, Type
 
 from spg.utils.definitions import CollisionTypes
@@ -36,6 +37,7 @@ class MyDroneKeyboard(DroneAbstract):
                    "lateral": 0.0,
                    "rotation": 0.0,
                    "grasper": 0}
+        print(self.measured_compass_angle()*180/np.pi)
         return command
 
 

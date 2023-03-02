@@ -3,6 +3,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.2.2] - 2023-02-07
+
+### Changed
+- Walls are no longer detected as OTHER, they are remove from the results of the semantic sensor.
+- Improve the generated report. Now, in english.
+
+### Added
+- Add a new example for the semantic sensor.
+
+### Fixed
+- Drones are correctly detected as DRONE in the results of the semantic sensor.
+- Bug fix concerning a random crash.
+- Bug fix in the computation of the number of wounded person bring to the rescue center, in the case of multi-grasping.
+- Fixed a bug in the calculation of the number of wounded person brought to the rescue center when they are brought by more than one drone.
+- Spelling in README.md
+- Compatibility with the new version of numpy : numpy.int has been deprecated, use int instead.
+
+## [2.2.1] - 2022-12-15
+
+### Changed
+- Cleaning example.
+- Disabled forbidden functions : position(), angle(), velocity(), angular_velocity() => generate an exception.
+
+### Added
+- Added map_intermediate_02.py !
+- In README, added instructions to install the program on Windows10. 
+- Added function grasped_entities() in drone_abstract.
+- Added function measured_velocity() computed from odometer and compass values in drone_abstract.
+- Added function measured_angular_velocity() in drone_abstract.
+- Added some tests.
+
+### Fixed
+- bug fix : the execution of the code goes through your control() function even if you have activated the use of the keyboard to control the drone.
+- there should be no more NaN at the first reading of the sensor data.
+- installation bug.
+
 ## [2.2.0] - 2022-10-27
 
 ### Changed
@@ -148,7 +184,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Initial commit
 
-[Unreleased]: https://github.com/emmanuel-battesti/swarm-rescue/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/emmanuel-battesti/swarm-rescue/compare/v2.2.2...HEAD
+[2.2.2]: https://github.com/emmanuel-battesti/swarm-rescue/compare/v2.2.1...v2.2.2
+[2.2.1]: https://github.com/emmanuel-battesti/swarm-rescue/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/emmanuel-battesti/swarm-rescue/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/emmanuel-battesti/swarm-rescue/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/emmanuel-battesti/swarm-rescue/compare/v1.5.2...v2.0.0

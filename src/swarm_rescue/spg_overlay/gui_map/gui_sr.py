@@ -115,6 +115,11 @@ class GuiSR(TopDownView):
 
     def on_update(self, delta_time):
         self._elapsed_time += 1
+
+        if self._elapsed_time < 2:
+            self._playground.step(commands=self._drones_commands, messages=self._messages)
+            return
+
         self._the_map.explored_map.update(self._drones)
 
         # COMPUTE ALL THE MESSAGES
@@ -122,10 +127,10 @@ class GuiSR(TopDownView):
 
         # COMPUTE COMMANDS
         for i in range(self._number_drones):
-            if self._use_keyboard:
+            command = self._drones[i].control()
+            if self._use_keyboard and i == 0:
                 command = self._keyboardController.control()
-            else:
-                command = self._drones[i].control()
+
             self._drones_commands[self._drones[i]] = command
 
         if self._drones:
@@ -150,6 +155,7 @@ class GuiSR(TopDownView):
         end_real_time = time.time()
         self._real_time_elapsed = (end_real_time - self._start_real_time)
         if self._real_time_elapsed > self._real_time_limit:
+            self._real_time_elapsed = self._real_time_limit
             self._real_time_limit_reached = True
             self._terminate = True
 
