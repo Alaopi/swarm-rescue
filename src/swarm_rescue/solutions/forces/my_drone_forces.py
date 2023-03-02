@@ -9,7 +9,6 @@ from enum import Enum
 from typing import Optional
 import numpy as np
 import time
-from scipy import ndimage
 
 import matplotlib.pyplot as plt
 
@@ -23,12 +22,14 @@ from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 class ForceConstants():
     WALL_AMP = 10
     UNKNOWN_AMP = 1
-    DRONE_AMP = 1
+    DRONE_AMP = 3000
     RESCUE_AMP = 1
     WALL_DAMP = 200
     UNKNOWN_DAMP = 1
     DRONE_DAMP = 200
     RESCUE_DAMP = 10
+    TRACK_AMP = 5000
+    FOLLOW_AMP = 1000
 
 
 class Vector:
@@ -48,7 +49,6 @@ class Vector:
         return math.sqrt(self.x**2 + self.y**2)
 
 class MyForceDrone(DroneAbstract):
-    
 
     def __init__(self,
                  identifier: Optional[int] = None,
@@ -59,7 +59,7 @@ class MyForceDrone(DroneAbstract):
                          misc_data=misc_data,
                          should_display_lidar=False,
                          **kwargs)
-        
+        print(self.identifier)
         self.REDUCTION_COEF = 8
         self.EXTRA_SIZE = 5//self.REDUCTION_COEF
         self.map = -np.ones((self.size_area[0]*2//self.REDUCTION_COEF,self.size_area[1]*2//self.REDUCTION_COEF))
@@ -70,7 +70,7 @@ class MyForceDrone(DroneAbstract):
 
         self.x_shift = self.size_area[0]//self.REDUCTION_COEF
         self.y_shift = self.size_area[1]//self.REDUCTION_COEF
-
+        self.NB_DRONES = misc_data.number_drones
         self.my_track = []
 
         self.sensor_init = False
@@ -82,17 +82,31 @@ class MyForceDrone(DroneAbstract):
 
         self.last_pos_x, self.last_pos_y = self.measured_gps_position()
         self.last_angle = self.measured_compass_angle() 
-
+        print(self.last_pos_x,self.last_pos_y)
         self.MAX_CONSECUTIVE_COUNTER = 15
         
         self.counter = 0
 
         self.state = self.Activity.SEARCHING_WOUNDED
+
+        if self.identifier == 0:
+            self.role = self.Role.LEADER
+            self.position_leader = [-1,-1]
+        else :
+            self.role = self.Role.FOLLOWER
+        self.position_leader = [-1,-1]
+        self.id_next_leader = -1
         
 
 
     def define_message_for_all(self):
-        msg_data = (self.identifier,self.map) ## à voir comment est defini self.map
+
+        id_new_leader = -1
+        if self.role == self.Role.LEADER and self.state is self.Activity.BACK_TRACKING :
+            print("kf,d")
+            id_new_leader = self.id_next_leader
+            self.role = self.Role.NEUTRAL
+        msg_data = (self.identifier,self.role, self.map,self.position_leader, id_new_leader, [self.last_pos_x,self.last_pos_y]) ## à voir comment est defini self.map
         #found = self.process_communication_sensor(self)
         return msg_data
 
@@ -101,30 +115,65 @@ class MyForceDrone(DroneAbstract):
         All the states of the drone as a state machine
         """
         SEARCHING_WOUNDED = 1
-        GRASpiNG_WOUNDED = 2
+        GRASPING_WOUNDED = 2
         BACK_TRACKING = 3
         DROPPING_AT_RESCUE_CENTER = 4
+        FOLLOWING = 5
 
+    class Role(Enum):  # Possible values of self.state which gives the current action of the drone
+        """
+        All the states of the drone as a state machine
+        """
+        LEADER = 1
+        FOLLOWER = 2
+        NEUTRAL = 3
 ################### COMMUNICATION #########################
     
-
+    
+            
     def receive_maps(self):
         
         if self.communicator:
+            found_leader = False
             received_messages = self.communicator.received_messages
+            id_inf = self.NB_DRONES
+            min_dist = 10000
+            found_follower = False
             for msg in received_messages:
-                sender_id = msg[0]
-                sender_map = msg[1][1]
+                #print(msg)
+                sender_id = msg[1][0]
+                sender_map = msg[1][2]
+
+                if self.role == self.Role.FOLLOWER:
+                    sender_role = msg[1][1]
+                    sender_pos_leader = msg[1][3]
+                    if sender_role == self.Role.LEADER:
+                        found_leader = True 
+                        self.position_leader = sender_pos_leader
+                    elif not found_leader :
+                        if sender_id < id_inf:
+                            id_inf = sender_id
+                            self.position_leader = sender_pos_leader
+                    if msg[1][4] == self.identifier:
+                        self.role = self.Role.LEADER
+
+                if self.role == self.Role.LEADER:
+                    sender_pos = msg[1][5]
+                    dx = sender_pos[0] - self.last_pos_x
+                    dy = sender_pos[1] - self.last_pos_y
+                    distance = math.sqrt(dx ** 2 + dy ** 2)
+                    if distance < min_dist:
+                        min_dist = distance
+                        self.id_next_leader = sender_id
+                        found_follower = True
+                        
+                    
+                
                 l,c= sender_map.shape
                 sender_wall_bool_map = (sender_map == self.MapState.WALL)
                 self.map += (self.map == self.MapState.UNKNOWN)*sender_map
                 #(sender_wall_bool_map == False)*self.map
-                """for i in range(l):
-                    for j in range(c):
-                        if self.map[i][j] == self.MapState.UNKNOWN and sender_map[i][j] != self.MapState.UNKNOWN : # actualise la map (remplace si inconnu)
-                            self.map[i][j] = sender_map[i][j]
-                            # voir si on ajoute la position des drones ? map[i][j][]"""
-        
+                
     
         return(self.map)   
 
@@ -189,7 +238,17 @@ class MyForceDrone(DroneAbstract):
         distance = math.sqrt(dx**2 + dy**2)
         angle_abs = math.atan2(dy,dx)
         angle_rel = angle_abs - orientation
-        amplitude = 5000*distance
+        amplitude = ForceConstants.TRACK_AMP*distance
+        f = Vector(amplitude, angle_rel)  # attractive : angle
+        return f
+    
+    def follow_force(self, pos_x, pos_y, orientation, target):
+        dx = target[0]-pos_x
+        dy = target[1]-pos_y
+        distance = math.sqrt(dx**2 + dy**2)
+        angle_abs = math.atan2(dy,dx)
+        angle_rel = angle_abs - orientation
+        amplitude = ForceConstants.FOLLOW_AMP*distance
         f = Vector(amplitude, angle_rel)  # attractive : angle
         return f
 
@@ -208,7 +267,7 @@ class MyForceDrone(DroneAbstract):
                     forces.append(self.wounded_force(
                         data.distance, data.angle))
                     '''if data.distance < 50 :
-                        self.state = self.Activity.GRASpiNG_WOUNDED'''
+                        self.state = self.Activity.GRASPING_WOUNDED'''
                 '''else:
                     forces.append(self.drone_force(
                         data.distance, data.angle))'''
@@ -606,6 +665,8 @@ class MyForceDrone(DroneAbstract):
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities :
             self.state = self.Activity.SEARCHING_WOUNDED
             self.my_track = []
+        if self.role == self.Role.FOLLOWER :
+            self.state is self.Activity.FOLLOWING
 
         detection_semantic = self.semantic().get_sensor_values()
 
@@ -639,72 +700,97 @@ class MyForceDrone(DroneAbstract):
             plt.show()
             plt.close()'''
         #print("Update map : ", end-start)
-    
-        if self.state is self.Activity.SEARCHING_WOUNDED:
-            self.my_track.append((pos_x,pos_y))
-            start = time.time()
-            force = self.total_force_with_semantic(detection_semantic,pos_x,pos_y,orientation)
-            end = time.time()
-            #print("Total forces : ", end-start)
-            force_norm = force.norm()
-            if force_norm != 0 :
-                forward_force = force.x/force_norm 
-                # To check : +pi/2 should be left of the drone, and right should be lateral>0
-                lateral_force = force.y/force_norm 
-                
-                command = {"forward": forward_force,
-                        "lateral": lateral_force,
-                        # We try to align the force and the front side of the drone
-                        "rotation": lateral_force,
-                        "grasper": 1}
-                    
 
-        if self.state is self.Activity.BACK_TRACKING:
-            command = {"forward": 0,
-                            "lateral": 0,
-                            "rotation": 0,
-                            "grasper": 1}
-            
-            if len(self.my_track) > 0 :
-                target = self.my_track[-1]
-                force = self.track_force(pos_x, pos_y, orientation, target)
+        if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
+            if self.state is self.Activity.SEARCHING_WOUNDED:
+                self.my_track.append((pos_x,pos_y))
+                start = time.time()
+                force = self.total_force_with_semantic(detection_semantic,pos_x,pos_y,orientation)
+                end = time.time()
+                #print("Total forces : ", end-start)
                 force_norm = force.norm()
                 if force_norm != 0 :
                     forward_force = force.x/force_norm 
                     # To check : +pi/2 should be left of the drone, and right should be lateral>0
                     lateral_force = force.y/force_norm 
+                    
                     command = {"forward": forward_force,
                             "lateral": lateral_force,
                             # We try to align the force and the front side of the drone
                             "rotation": lateral_force,
                             "grasper": 1}
-                if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 100/self.REDUCTION_COEF:
-                    self.my_track.pop()
-                    
-        if self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
-            command = {"forward": 0,
-                        "lateral": 0,
-                        "rotation": 0,
-                        "grasper": 1}
-            
-            force = self.total_force_with_semantic(detection_semantic,pos_x,pos_y,orientation)
+                        
 
-            #print("Total forces : ", end-start)
+            if self.state is self.Activity.BACK_TRACKING:
+                command = {"forward": 0,
+                                "lateral": 0,
+                                "rotation": 0,
+                                "grasper": 1}
+                
+                if len(self.my_track) > 0 :
+                    target = self.my_track[-1]
+                    force = self.track_force(pos_x, pos_y, orientation, target)
+                    force_norm = force.norm()
+                    if force_norm != 0 :
+                        forward_force = force.x/force_norm 
+                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                        lateral_force = force.y/force_norm 
+                        command = {"forward": forward_force,
+                                "lateral": lateral_force,
+                                # We try to align the force and the front side of the drone
+                                "rotation": lateral_force,
+                                "grasper": 1}
+                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 100/self.REDUCTION_COEF:
+                        self.my_track.pop()
+
+            if self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
+                command = {"forward": 0,
+                            "lateral": 0,
+                            "rotation": 0,
+                            "grasper": 1}
+                
+                force = self.total_force_with_semantic(detection_semantic,pos_x,pos_y,orientation)
+
+                #print("Total forces : ", end-start)
+                force_norm = force.norm()
+                if force_norm != 0 :
+                    forward_force = force.x/force_norm 
+                    # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                    lateral_force = force.y/force_norm 
+                    
+                    command = {"forward": forward_force,
+                            "lateral": lateral_force,
+                            # We try to align the force and the front side of the drone
+                            "rotation": lateral_force,
+                            "grasper": 1}
+            self.position_leader = [pos_x,pos_y]
+        else :
+            command = {"forward": 0,
+                                "lateral": 0,
+                                "rotation": 0,
+                                "grasper": 0}
+            
+            target = self.position_leader
+            #print(target)
+            force = self.follow_force(pos_x, pos_y, orientation, target)
+            #print(force.x,force.y)
+            force.add_vector(self.total_force_with_semantic(detection_semantic,pos_x,pos_y,orientation))
+            #print(force.x,force.y)
             force_norm = force.norm()
             if force_norm != 0 :
                 forward_force = force.x/force_norm 
                 # To check : +pi/2 should be left of the drone, and right should be lateral>0
                 lateral_force = force.y/force_norm 
-                
                 command = {"forward": forward_force,
                         "lateral": lateral_force,
                         # We try to align the force and the front side of the drone
                         "rotation": lateral_force,
-                        "grasper": 1}
-
+                        "grasper": 0}
+            
         #print(self.map[pos_x-10:pos_x + 10, pos_y-10:pos_y + 10])
         self.last_angle = orientation
         self.last_pos_x = pos_x
         self.last_pos_y = pos_y
         self.counter +=1
+        #print(command)
         return command
