@@ -666,7 +666,8 @@ class MyForceDrone(DroneAbstract):
                             "grasper": 1}
             
             if len(self.my_track) > 0 :
-                force = self.track_force(pos_x, pos_y, orientation, self.my_track.pop())
+                target = self.my_track[-1]
+                force = self.track_force(pos_x, pos_y, orientation, target)
                 force_norm = force.norm()
                 if force_norm != 0 :
                     forward_force = force.x/force_norm 
@@ -677,7 +678,9 @@ class MyForceDrone(DroneAbstract):
                             # We try to align the force and the front side of the drone
                             "rotation": lateral_force,
                             "grasper": 1}
-
+                if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 100/self.REDUCTION_COEF:
+                    self.my_track.pop()
+                    
         if self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
             command = {"forward": 0,
                         "lateral": 0,

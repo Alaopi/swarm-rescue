@@ -15,11 +15,11 @@ from maps.map_complete_02 import MyMapComplete02
 from solutions.my_drone_random import MyDroneRandom
 from solutions.forces.my_drone_forces import MyForceDrone
 from solutions.my_drone_fourmi import MyAntDrone
-class MyMap(MyMapComplete01):
+class MyMap(MyMapIntermediate01):
     pass
 
 
-class MyDrone(MyAntDrone):
+class MyDrone(MyForceDrone):
     pass
 
 
