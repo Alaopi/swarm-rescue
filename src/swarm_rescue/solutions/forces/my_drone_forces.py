@@ -240,6 +240,7 @@ class MyForceDrone(DroneAbstract):
 
     # Definition of the various forces used to control the drone
 
+
     def wall_force(self, distance, angle):
 
         amplitude = ForceConstants.WALL_AMP * \
@@ -781,11 +782,14 @@ class MyForceDrone(DroneAbstract):
             pos_set = self.my_track[i:i+nb_consecutive_positions]
             var_x = np.var([pos[0] for pos in pos_set])
             var_y = np.var([pos[1] for pos in pos_set])
-            if var_x*var_y > VAR_THRESHOLD:
+            #print("Var : ", var_x, var_y)
+            if var_x > VAR_THRESHOLD or var_y > VAR_THRESHOLD:
                 new_track += pos_set
+            else:
                 nb_erased += 1
         new_track += self.my_track[-nb_consecutive_positions+1:]
-        print("Number of erased position : ", nb_erased*5)
+        # print("Number of erased position : ",
+        #      nb_erased*nb_consecutive_positions)
         return new_track
 
 ################### END MAPPING ###########################
@@ -891,7 +895,6 @@ class MyForceDrone(DroneAbstract):
 
 ################### END BACKUP BEHAVIOR (ANT) #####################
 
-
     def control(self):
         """
         The drone will behave differently according to its current state
@@ -908,7 +911,7 @@ class MyForceDrone(DroneAbstract):
         STUCK_TIMER = 80
 
         if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
-            self.optimize_track(VAR_THRESHOLD=100.0)
+            self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
             self.state = self.Activity.BACK_TRACKING
 
         elif self.state is self.Activity.BACK_TRACKING and len(self.my_track) == 0:
