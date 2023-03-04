@@ -255,7 +255,10 @@ class MyForceDrone(DroneAbstract):
         angle_abs = math.atan2(dy, dx)
         angle_rel = angle_abs - orientation
         amplitude = ForceConstants.FOLLOW_AMP*distance
-        f = Vector(amplitude, angle_rel)  # attractive : angle
+        if distance > 50:
+            f = Vector(amplitude, angle_rel)  # attractive : angle
+        else :
+            f = Vector(amplitude, angle_rel-np.pi)  # attractive : angle
         return f
 
     # Should be working, don't need GPS
