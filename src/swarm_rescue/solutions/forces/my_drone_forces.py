@@ -103,6 +103,8 @@ class MyForceDrone(DroneAbstract):
         self.position_leader = [-1, -1]
         self.id_next_leader = -1
 
+        self.mapping = True
+
     def define_message_for_all(self):
         
         id_new_leader = -1
@@ -111,7 +113,7 @@ class MyForceDrone(DroneAbstract):
             id_new_leader = self.id_next_leader
             self.role = self.Role.NEUTRAL
         msg_data = (self.identifier, self.role, self.map, self.position_leader, id_new_leader, [
-                    self.last_v_pos_x, self.last_v_pos_y])  
+                    self.last_v_pos_x, self.last_v_pos_y],self.mapping)  
         return msg_data
     
         pass
@@ -144,14 +146,30 @@ class MyForceDrone(DroneAbstract):
             id_inf = self.NB_DRONES
             min_dist = 10000
             found_follower = False
+            found_mapper = False
+            lower_id = self.identifier
+
+            #First quick loop to have a global view of the other drones
+            for msg in received_messages:
+                sender_id = msg[1][0]
+                sender_was_mapping = msg[1][6]
+                if sender_was_mapping:
+                    found_mapper = True
+                if sender_id < lower_id:
+                    lower_id = sender_id
+
             for msg in received_messages:
                 # print(msg)
                 sender_id = msg[1][0]
+                sender_role = msg[1][1]
                 sender_map = msg[1][2]
+                sender_pos_leader = msg[1][3]
+                sender_pos = msg[1][5]
+                sender_was_mapping = msg[1][6]
 
+                #Role management
                 if self.role == self.Role.FOLLOWER:
-                    sender_role = msg[1][1]
-                    sender_pos_leader = msg[1][3]
+    
                     if sender_role == self.Role.LEADER:
                         found_leader = True
                         self.position_leader = sender_pos_leader
@@ -159,35 +177,41 @@ class MyForceDrone(DroneAbstract):
                         if sender_id < id_inf:
                             id_inf = sender_id
                             self.position_leader = sender_pos_leader
+
                     if msg[1][4] == self.identifier:
                         self.role = self.Role.LEADER
 
                 if self.role == self.Role.LEADER:
-                    sender_pos = msg[1][5]
+                    
                     dx = sender_pos[0] - self.last_v_pos_x
                     dy = sender_pos[1] - self.last_v_pos_y
                     distance = math.sqrt(dx ** 2 + dy ** 2)
+
                     if distance < min_dist:
                         min_dist = distance
                         self.id_next_leader = sender_id
                         found_follower = True
 
-                l, c = sender_map.shape
-                sender_wall_bool_map = (sender_map == self.MapState.WALL)
-                self.map += (self.map == self.MapState.UNKNOWN)*sender_map
-                #(sender_wall_bool_map == False)*self.map
+                #Map management
+                if self.mapping:
+                    if sender_was_mapping:
+                        sender_wall_bool_map = (sender_map == self.MapState.WALL)+(self.map == self.MapState.UNKNOWN)
+                        not_sender_wall_bool_map = sender_wall_bool_map==False
+                        self.map = sender_wall_bool_map*sender_map + not_sender_wall_bool_map*self.map
+                else:
+                    if sender_was_mapping or (not found_mapper and sender_id == lower_id):
+                        self.map = sender_map
+                    
+            #Decide who will do what now
+            if len(received_messages) == 0 :
+                '''if the drone is alone, it becomes a leader'''
+                self.role = self.Role.LEADER
+
+            #Decide who will map
+            if self.role == self.Role.LEADER or self.identifier == lower_id:
+                self.mapping = True
 
         return(self.map)
-
-# Done by "define_message_for_all"
-   # def share_map(self):
-    #    msg_data = (self.identifier,(self.measured_gps_position(), self.measured_compass_angle()), self.map) ## à voir comment est defini self.map
-     #   found = self.process_communication_sensor(self)
-      #  if found:
-       #     send(self,msg_data)
-        #    return True
-        # else:
-        #   return False
 
 
 ################### END COMMUNICATION ###########################
