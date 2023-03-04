@@ -79,7 +79,7 @@ class MyForceDrone(DroneAbstract):
         self.NB_DRONES = misc_data.number_drones
         self.my_track = []
 
-        self.stuck_movement = 0
+        self.stuck_movement = 100
         self.stuck_timer = 0
 
         self.sensor_init = False
@@ -741,13 +741,17 @@ class MyForceDrone(DroneAbstract):
 
     def optimize_track(self, VAR_THRESHOLD):
         new_track = [self.my_track[0]]
-        for i in range(1, len(self.my_track)-4, 5):
-            pos_set = self.my_track[i:i+5]
+        nb_consecutive_positions = 5
+        nb_erased = 0
+        for i in range(1, len(self.my_track)-nb_consecutive_positions+1, nb_consecutive_positions):
+            pos_set = self.my_track[i:i+nb_consecutive_positions]
             var_x = np.var([pos[0] for pos in pos_set])
             var_y = np.var([pos[1] for pos in pos_set])
             if var_x*var_y > VAR_THRESHOLD:
-                new_positions += pos_set
-        new_track += self.my_track[-4:]
+                new_track += pos_set
+                nb_erased += 1
+        new_track += self.my_track[-nb_consecutive_positions+1:]
+        print("Number of erased position : ", nb_erased*5)
         return new_track
 
 ################### END MAPPING ###########################
@@ -870,8 +874,7 @@ class MyForceDrone(DroneAbstract):
         STUCK_TIMER = 80
 
         if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
-            VAR_THRESHOLD = 0.5
-            self.optimize_track()
+            self.optimize_track(VAR_THRESHOLD=100.0)
             self.state = self.Activity.BACK_TRACKING
 
         elif self.state is self.Activity.BACK_TRACKING and len(self.my_track) == 0:
