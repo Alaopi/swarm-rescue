@@ -214,6 +214,7 @@ class MyForceDrone(DroneAbstract):
 
     # Definition of the various forces used to control the drone
 
+
     def wall_force(self, distance, angle):
 
         amplitude = ForceConstants.WALL_AMP * \
@@ -717,7 +718,6 @@ class MyForceDrone(DroneAbstract):
 
 ################### BACKUP BEHAVIOR (ANT) #####################
 
-
     def touch_acquisition(self):
         """"
         Returns nb of touches (0|1|2) and Vector indicating triggered captors
@@ -769,27 +769,29 @@ class MyForceDrone(DroneAbstract):
 
     def control_wall(self, command):
 
-        command_straight = {"forward": 1.0,
+        SPEED = 0.8
+
+        command_straight = {"forward": SPEED*1.0,
                             "lateral": 0.0,
                             "rotation": 0.0,
                             "grasper": command["grasper"]
                             }
 
-        command_right = {"forward": 0.5,
-                         "lateral": -0.9,
-                         "rotation": -0.4,
+        command_right = {"forward": SPEED*0.5,
+                         "lateral": SPEED*-0.9,
+                         "rotation": SPEED*-0.4,
                          "grasper": command["grasper"]
                          }
 
-        command_turn = {"forward": 1.0,
+        command_turn = {"forward": SPEED*1.0,
                         "lateral": 0.0,
-                        "rotation": 1.0,
+                        "rotation": SPEED*1.0,
                         "grasper": command["grasper"]
                         }
 
-        command_left = {"forward": 0.2,
+        command_left = {"forward": SPEED*0.2,
                         "lateral": 0.0,
-                        "rotation": 1.0, "grasper": command["grasper"]
+                        "rotation": SPEED*1.0, "grasper": command["grasper"]
                         }
 
         touch_array = self.touch_acquisition()
@@ -815,7 +817,6 @@ class MyForceDrone(DroneAbstract):
 
 ################### END BACKUP BEHAVIOR (ANT) #####################
 
-
     def control(self):
         """
         The drone will behave differently according to its current state
@@ -828,8 +829,8 @@ class MyForceDrone(DroneAbstract):
         # adding the distance traveled
         self.stuck_movement += self.odometer_values()[0]
 
-        STUCK_THRESHOLD = 5
-        STUCK_TIMER = 50
+        STUCK_THRESHOLD = 10
+        STUCK_TIMER = 80
 
         if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
             self.state = self.Activity.BACK_TRACKING
@@ -844,20 +845,21 @@ class MyForceDrone(DroneAbstract):
         if self.role == self.Role.FOLLOWER:
             self.state is self.Activity.FOLLOWING
 
-        if self.counter % 10 == 0:
+        if self.counter % 20 == 0:
             if self.Behavior == self.behavior.NOMINAL and self.stuck_movement < STUCK_THRESHOLD:
-                print("SWITCHING BEHAVIOR TO ANT")
+                #print("SWITCHING BEHAVIOR TO ANT")
                 self.stuck_movement = STUCK_THRESHOLD
                 self.Behavior = self.behavior.BACKUP
             self.stuck_movement = 0
 
         if self.Behavior == self.behavior.BACKUP and self.stuck_timer > STUCK_TIMER:
-            print("SWITCHING BEHAVIOR TO NOMINAL")
+            #print("SWITCHING BEHAVIOR TO NOMINAL")
             self.stuck_timer = 0
             self.Behavior = self.behavior.NOMINAL
 
         detection_semantic = self.semantic().get_sensor_values()
 
+        # perte de signal GPS
         if self.measured_gps_position() is None or self.measured_compass_angle() is None:
 
             dist_traveled, alpha, theta = self.odometer_values()
@@ -882,13 +884,17 @@ class MyForceDrone(DroneAbstract):
         #print(pos_x, pos_y, orientation)
 
         start = time.time()
-        self.receive_maps()
+
+        if self.counter % 3 == 0:
+            self.receive_maps()
         end = time.time()
         #print("Receive maps : ", end-start)
 
         start = time.time()
-        #self.update_map(detection_semantic, pos_x, pos_y, orientation)
+        if self.counter % 3 == 0:
+            self.update_map(detection_semantic, pos_x, pos_y, orientation)
         end = time.time()
+        #print("Update maps : ", end-start)
 
         ########### PLOT ###########
         """
@@ -904,9 +910,8 @@ class MyForceDrone(DroneAbstract):
         #print("Update map : ", end-start)
         """
         ########### END PLOT ##########
-
+        start1 = time.time()
         if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
-            self.update_map(detection_semantic, pos_x, pos_y, orientation)
             if self.state is self.Activity.SEARCHING_WOUNDED:
                 self.my_track.append((pos_x, pos_y))
                 start = time.time()
@@ -994,7 +999,8 @@ class MyForceDrone(DroneAbstract):
                            # We try to align the force and the front side of the drone
                            "rotation": lateral_force,
                            "grasper": 0}
-
+        end1 = time.time()
+        #print("Time 1 : ", end1-start1)
         #print(self.map[pos_x-10:pos_x + 10, pos_y-10:pos_y + 10])
         self.last_angle = orientation
         self.last_v_pos_x = v_pos_x
