@@ -92,7 +92,7 @@ class MyForceDrone(DroneAbstract):
         self.last_v_pos_x, self.last_v_pos_y = 0, 0
         self.last_angle = 0
         #print(self.last_v_pos_x, self.last_v_pos_y)
-        self.MAX_CONSECUTIVE_COUNTER = 4
+        self.MAX_CONSECUTIVE_COUNTER = 3
 
         self.counter = 0
 
@@ -251,9 +251,12 @@ class MyForceDrone(DroneAbstract):
 
     def rescue_center_force(self, distance, angle):
         if self.state is self.Activity.SEARCHING_WOUNDED:
-            amplitude = ForceConstants.RESCUE_AMP * \
+            '''amplitude = ForceConstants.RESCUE_AMP * \
                 math.exp(-ForceConstants.RESCUE_DAMP *
                          distance / self.size_area[0])
+            f = Vector(amplitude, angle-np.pi)  # repulsive : angle-Pi'''
+            amplitude = ForceConstants.WALL_AMP * \
+            math.exp(-ForceConstants.WALL_DAMP * distance/self.size_area[0])
             f = Vector(amplitude, angle-np.pi)  # repulsive : angle-Pi
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
             amplitude = ForceConstants.RESCUE_AMP * distance
@@ -280,7 +283,6 @@ class MyForceDrone(DroneAbstract):
                        0, angle-np.pi)  # attractive : angle
         return f
 
-        return f
 
     def wounded_force(self, distance, angle):
         amplitude = 5000*distance
@@ -393,7 +395,7 @@ class MyForceDrone(DroneAbstract):
                 if self.map[pos_x - dx, pos_y] == self.MapState.UNKNOWN:
                     neg_xmin = -dx
                     bool_neg_wall_x = False
-
+                    found_unknown = True
                 elif self.map[pos_x - dx, pos_y] == self.MapState.WALL:
                     bool_neg_wall_x = True
                     neg_wall_x = pos_x - dx
@@ -430,7 +432,7 @@ class MyForceDrone(DroneAbstract):
                 if self.map[pos_x, pos_y - dy] == self.MapState.UNKNOWN:
                     neg_ymin = -dy
                     bool_neg_wall_y = False
-
+                    found_unknown = True
                 elif self.map[pos_x, pos_y - dy] == self.MapState.WALL:
                     bool_neg_wall_y = True
                     neg_wall_y = pos_y - dy
