@@ -15,6 +15,8 @@ from maps.map_complete_02 import MyMapComplete02
 from solutions.my_drone_random import MyDroneRandom
 from solutions.forces.my_drone_forces import MyForceDrone
 from solutions.my_drone_fourmi import MyAntDrone
+
+
 class MyMap(MyMapIntermediate01):
     pass
 
@@ -57,9 +59,9 @@ class Launcher:
         team_number_str = str(self.team_info.team_number).zfill(2)
         if self.video_capture_enabled:
             filename_video_capture = self.save_data.path + \
-                                     "/screen_{}_rd{}_team{}.avi".format(envir_str,
-                                                                         num_round_str,
-                                                                         team_number_str)
+                "/screen_{}_rd{}_team{}.avi".format(envir_str,
+                                                    num_round_str,
+                                                    team_number_str)
         else:
             filename_video_capture = None
 
