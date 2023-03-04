@@ -83,6 +83,7 @@ class MyForceDrone(DroneAbstract):
         self.stuck_timer = 0
         self.stuck_pos_x = 100
         self.stuck_pos_y = 100
+        self.stuck_pos = [0, 0, 0, 0, 0]
 
         self.sensor_init = False
         self.state = self.Activity.SEARCHING_WOUNDED
@@ -242,6 +243,7 @@ class MyForceDrone(DroneAbstract):
 ################### FORCES #########################
 
     # Definition of the various forces used to control the drone
+
 
     def wall_force(self, distance, angle):
 
@@ -817,6 +819,11 @@ class MyForceDrone(DroneAbstract):
 
 ################### BACKUP BEHAVIOR (ANT) #####################
 
+    def update_last_pos(self, pos_x, pos_y):
+        for i in range(0, 4):
+            self.stuck_pos[i] = self.stuck_pos[i+1]
+        self.stuck_pos[4] = (pos_x, pos_y)
+
     def touch_acquisition(self):
         """"
         Returns nb of touches (0|1|2) and Vector indicating triggered captors
@@ -917,7 +924,6 @@ class MyForceDrone(DroneAbstract):
 
 ################### END BACKUP BEHAVIOR (ANT) #####################
 
-
     def control(self):
         """
         The drone will behave differently according to its current state
@@ -927,22 +933,24 @@ class MyForceDrone(DroneAbstract):
                    "rotation": 0,  # We try to align the force and the front side of the drone
                    "grasper": 0}
 
-        self.stuck_movement += self.odometer_values()[0]
-        '''
-        if self.counter % 5 == 0:
-            POS_THRESHOLD = 0.5
+        #self.stuck_movement += self.odometer_values()[0]
+        s_pos_x, s_pos_y = self.measured_gps_position()
+        self.update_last_pos(s_pos_x, s_pos_y)
+
+        if self.counter % 5 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
+            POS_THRESHOLD = 0.8
             nb_consecutive_positions = 5
-            pos_set = self.my_track[-nb_consecutive_positions +
-                                    1:-nb_consecutive_positions]
+            pos_set = self.stuck_pos
             var_x = np.var([pos[0] for pos in pos_set])
             var_y = np.var([pos[1] for pos in pos_set])
             # print("Var : ", var_x, var_y)
-            if var_x < POS_THRESHOLD or var_y < POS_THRESHOLD:
+            if var_x < POS_THRESHOLD and var_y < POS_THRESHOLD:
                 print("Entering ANT MODE")
+                self.random_sign = random.choice([-1, 1])
                 self.Behavior = self.behavior.BACKUP
-        '''
-        STUCK_THRESHOLD = 5
-        STUCK_TIMER = 60
+
+        #STUCK_THRESHOLD = 5
+        STUCK_TIMER = 80
 
         if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
             self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
@@ -957,7 +965,7 @@ class MyForceDrone(DroneAbstract):
 
         if self.role == self.Role.FOLLOWER:
             self.state is self.Activity.FOLLOWING
-
+        '''
         if self.counter % 10 == 0 and self.counter > 0:
             if self.Behavior == self.behavior.NOMINAL and self.stuck_movement < STUCK_THRESHOLD:
                 print("SWITCHING BEHAVIOR TO ANT")
@@ -965,7 +973,7 @@ class MyForceDrone(DroneAbstract):
                 self.random_sign = random.choice([-1, 1])
                 self.Behavior = self.behavior.BACKUP
             self.stuck_movement = 0
-
+        '''
         if self.Behavior == self.behavior.BACKUP and self.stuck_timer > STUCK_TIMER:
             print("SWITCHING BEHAVIOR TO NOMINAL")
             self.stuck_timer = 0
