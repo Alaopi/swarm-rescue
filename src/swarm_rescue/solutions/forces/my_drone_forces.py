@@ -18,7 +18,7 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 #from spg.src.spg.agent.communicator import Communicator
 
-print_map = True
+print_map = False
 
 class ForceConstants():
     WALL_AMP = 10
@@ -314,6 +314,7 @@ class MyForceDrone(DroneAbstract):
         forces = []
         angles = []
         wall_angles = []
+        need_to_grasp = False
 
         for data in detection_semantic:
 
@@ -324,8 +325,8 @@ class MyForceDrone(DroneAbstract):
                 if (not data.grasped) and self.state is self.Activity.SEARCHING_WOUNDED:
                     forces.append(self.wounded_force(
                         data.distance, data.angle))
-                    '''if data.distance < 50 :
-                        self.state = self.Activity.GRASPING_WOUNDED'''
+                    if data.distance < 50 :
+                        need_to_grasp = True
                 else:
                     forces.append(self.drone_force(
                         data.distance, data.angle))
@@ -348,7 +349,7 @@ class MyForceDrone(DroneAbstract):
 
         for force in forces:
             total_force.add_vector(force)
-        return total_force
+        return total_force,need_to_grasp
 
     def force_unknown_from_map(self, pos_x, pos_y, orientation):
         forces = []
@@ -433,7 +434,7 @@ class MyForceDrone(DroneAbstract):
             ymin = pos_ymin
             wall_y = pos_wall_y
         #print("ymin = ", ymin)
-        print(found_unknown)
+        print(found_unknown, xmin,ymin, wall_x, wall_y)
         if (abs(xmin) < abs(ymin) and (not wall_x or wall_y)) or (wall_y and not wall_x):
             if xmin != 10000:
 
@@ -994,7 +995,7 @@ class MyForceDrone(DroneAbstract):
             if self.state is self.Activity.SEARCHING_WOUNDED:
                 self.my_track.append((pos_x, pos_y))
                 start = time.time()
-                force = self.total_force_with_semantic(
+                force,need_to_grasp = self.total_force_with_semantic(
                     detection_semantic, pos_x, pos_y, orientation)
                 end = time.time()
                 #print("Total forces : ", end-start)
@@ -1008,7 +1009,9 @@ class MyForceDrone(DroneAbstract):
                                "lateral": lateral_force,
                                # We try to align the force and the front side of the drone
                                "rotation": lateral_force,
-                               "grasper": 1}
+                               "grasper": 0}
+                if need_to_grasp:
+                    command["grasper"] = 1
 
             if self.state is self.Activity.BACK_TRACKING:
                 command = {"forward": 0,
