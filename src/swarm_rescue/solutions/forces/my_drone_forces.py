@@ -18,7 +18,7 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 #from spg.src.spg.agent.communicator import Communicator
 
-print_map = False
+print_map = True
 
 class ForceConstants():
     WALL_AMP = 10
@@ -1084,7 +1084,7 @@ class MyForceDrone(DroneAbstract):
             force = self.follow_force(pos_x, pos_y, orientation, target)
             # print(force.x,force.y)
             force.add_vector(self.total_force_with_semantic(
-                detection_semantic, pos_x, pos_y, orientation))
+                detection_semantic, pos_x, pos_y, orientation)[0])
             # print(force.x,force.y)
             force_norm = force.norm()
             if force_norm != 0:
