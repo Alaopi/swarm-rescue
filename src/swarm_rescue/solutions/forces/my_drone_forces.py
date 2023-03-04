@@ -214,7 +214,6 @@ class MyForceDrone(DroneAbstract):
 
     # Definition of the various forces used to control the drone
 
-
     def wall_force(self, distance, angle):
 
         amplitude = ForceConstants.WALL_AMP * \
@@ -718,6 +717,7 @@ class MyForceDrone(DroneAbstract):
 
 ################### BACKUP BEHAVIOR (ANT) #####################
 
+
     def touch_acquisition(self):
         """"
         Returns nb of touches (0|1|2) and Vector indicating triggered captors
@@ -767,28 +767,36 @@ class MyForceDrone(DroneAbstract):
         detection[-1] = nb_touches
         return detection
 
-    def control_wall(self):
+    def control_wall(self, command):
 
         command_straight = {"forward": 1.0,
                             "lateral": 0.0,
-                            "rotation": 0.0}
+                            "rotation": 0.0,
+                            "grasper": command["grasper"]
+                            }
 
         command_right = {"forward": 0.5,
                          "lateral": -0.9,
-                         "rotation": -0.4}
+                         "rotation": -0.4,
+                         "grasper": command["grasper"]
+                         }
 
         command_turn = {"forward": 1.0,
                         "lateral": 0.0,
-                        "rotation": 1.0}
+                        "rotation": 1.0,
+                        "grasper": command["grasper"]
+                        }
 
         command_left = {"forward": 0.2,
                         "lateral": 0.0,
-                        "rotation": 1.0}
+                        "rotation": 1.0, "grasper": command["grasper"]
+                        }
 
         touch_array = self.touch_acquisition()
 
         # when the drone doesn't touch any wall i.e. case when he is lost
         if touch_array[-1] == 0.0:
+
             return command_right
 
         # when the drone touches a wall, first the drone must put the wall on his right (rotation if necessary) and then go straight forward
@@ -806,6 +814,7 @@ class MyForceDrone(DroneAbstract):
 
 
 ################### END BACKUP BEHAVIOR (ANT) #####################
+
 
     def control(self):
         """
@@ -997,6 +1006,6 @@ class MyForceDrone(DroneAbstract):
 
         if self.Behavior == self.behavior.BACKUP:
             self.stuck_timer += 1
-            command = self.control_wall()
+            command = self.control_wall(command)
 
         return command
