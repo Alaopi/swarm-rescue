@@ -18,6 +18,8 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 #from spg.src.spg.agent.communicator import Communicator
 
+print_map = False
+
 
 class ForceConstants():
     WALL_AMP = 10
@@ -574,7 +576,7 @@ class MyForceDrone(DroneAbstract):
 
 ################### END FORCES ###########################
 
-################### MAPpiNG #########################
+################### MAPPING #########################
 
     class MapState():
         """ State of each elements of the matrix representing the map
@@ -713,8 +715,11 @@ class MyForceDrone(DroneAbstract):
             self.change_pixel_value(int(x), int(y), self.MapState.EMPTY)
         return
 
+    def optimize_track(self):
+        last_pos = self.my_track[0:5]
+        for i in range(len(list))
 
-################### END MAPpiNG ###########################
+################### END MAPPING ###########################
 
 ################### BACKUP BEHAVIOR (ANT) #####################
 
@@ -833,6 +838,7 @@ class MyForceDrone(DroneAbstract):
         STUCK_TIMER = 80
 
         if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
+            self.my_track
             self.state = self.Activity.BACK_TRACKING
 
         elif self.state is self.Activity.BACK_TRACKING and len(self.my_track) == 0:
@@ -897,18 +903,18 @@ class MyForceDrone(DroneAbstract):
         #print("Update maps : ", end-start)
 
         ########### PLOT ###########
-        """
-        if self.counter % 100 == 0:
+        if print_map:
+            if self.counter % 100 == 0:
 
-            plt.pcolormesh(self.map.T)
-            plt.colorbar()
-            plt.show()
-            plt.close()
+                plt.pcolormesh(self.map.T)
+                plt.colorbar()
+                plt.show()
+                plt.close()
 
-            plt.show()
-            plt.close()
-        #print("Update map : ", end-start)
-        """
+                plt.show()
+                plt.close()
+            #print("Update map : ", end-start)
+
         ########### END PLOT ##########
         start1 = time.time()
         if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
