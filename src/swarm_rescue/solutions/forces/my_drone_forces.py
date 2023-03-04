@@ -199,6 +199,7 @@ class MyForceDrone(DroneAbstract):
 
     # Definition of the various forces used to control the drone
 
+
     def wall_force(self, distance, angle):
 
         amplitude = ForceConstants.WALL_AMP * \
@@ -255,9 +256,9 @@ class MyForceDrone(DroneAbstract):
         angle_abs = math.atan2(dy, dx)
         angle_rel = angle_abs - orientation
         amplitude = ForceConstants.FOLLOW_AMP*distance
-        if distance > 50:
+        if distance > 60/self.REDUCTION_COEF:
             f = Vector(amplitude, angle_rel)  # attractive : angle
-        else :
+        else:
             f = Vector(amplitude, angle_rel-np.pi)  # attractive : angle
         return f
 
@@ -661,7 +662,6 @@ class MyForceDrone(DroneAbstract):
 
 ################### END MAPpiNG ###########################
 
-
     def control(self):
         """
         The drone will behave differently according to its current state
@@ -695,7 +695,7 @@ class MyForceDrone(DroneAbstract):
             pos_y = int(np.round(self.last_pos_y + dist_traveled *
                         math.sin(alpha + self.last_angle)/self.REDUCTION_COEF/1.2))
             orientation = self.last_angle + theta*1.
-            print("*", pos_x, pos_y, orientation)
+            #print("*", pos_x, pos_y, orientation)
 
         else:
             v_pos_x, v_pos_y = self.measured_gps_position()
@@ -706,7 +706,7 @@ class MyForceDrone(DroneAbstract):
 
             pos_x, pos_y, orientation = v_pos_x, v_pos_y, v_orientation
 
-            print(pos_x, pos_y, orientation)
+            #print(pos_x, pos_y, orientation)
 
         start = time.time()
         self.receive_maps()
@@ -714,8 +714,9 @@ class MyForceDrone(DroneAbstract):
         #print("Receive maps : ", end-start)
 
         start = time.time()
-        self.update_map(detection_semantic, pos_x, pos_y, orientation)
+        #self.update_map(detection_semantic, pos_x, pos_y, orientation)
         end = time.time()
+        '''
         if self.counter % 50 == 0:
 
             plt.pcolormesh(self.map.T)
@@ -726,8 +727,10 @@ class MyForceDrone(DroneAbstract):
             plt.show()
             plt.close()
         #print("Update map : ", end-start)
+        '''
 
         if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
+            self.update_map(detection_semantic, pos_x, pos_y, orientation)
             if self.state is self.Activity.SEARCHING_WOUNDED:
                 self.my_track.append((pos_x, pos_y))
                 start = time.time()

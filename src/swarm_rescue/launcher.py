@@ -17,7 +17,7 @@ from solutions.forces.my_drone_forces import MyForceDrone
 from solutions.my_drone_fourmi import MyAntDrone
 
 
-class MyMap(MyMapIntermediate01):
+class MyMap(MyMapComplete02):
     pass
 
 
