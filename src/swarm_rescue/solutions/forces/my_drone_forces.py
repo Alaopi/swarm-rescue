@@ -26,9 +26,9 @@ class ForceConstants():
     RESCUE_AMP = 1
     WALL_DAMP = 200
     UNKNOWN_DAMP = 1
-    DRONE_DAMP = 200
+    DRONE_DAMP = 1000
     RESCUE_DAMP = 10
-    TRACK_AMP = 5000
+    TRACK_AMP = 50000
     FOLLOW_AMP = 1000
 
 
@@ -228,10 +228,16 @@ class MyForceDrone(DroneAbstract):
         return f
 
     def drone_force(self, distance, angle):
-        amplitude = ForceConstants.DRONE_AMP * \
+        '''amplitude = ForceConstants.DRONE_AMP * \
             math.exp(-ForceConstants.DRONE_DAMP *
                      distance/(self.size_area[0]))*0
-        f = Vector(amplitude, angle-np.pi)  # repulsive : angle-pi
+        f = Vector(amplitude, angle-np.pi)  # repulsive : angle-pi'''
+        if distance > 60/self.REDUCTION_COEF:
+            f = Vector()  # null : angle
+        else:
+            f = Vector(ForceConstants.DRONE_AMP*distance, angle-np.pi)  # attractive : angle
+        return f
+
         return f
 
     def wounded_force(self, distance, angle):
