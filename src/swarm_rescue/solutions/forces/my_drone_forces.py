@@ -120,7 +120,7 @@ class MyForceDrone(DroneAbstract):
             id_new_leader = self.id_next_leader
             self.role = self.Role.NEUTRAL
         msg_data = (self.identifier, self.role, self.map, self.position_leader, id_new_leader, [
-                    self.last_v_pos_x, self.last_v_pos_y],self.mapping)  
+                    self.last_v_pos_x, self.last_v_pos_y], self.mapping)
         return msg_data
 
         pass
@@ -164,7 +164,7 @@ class MyForceDrone(DroneAbstract):
             found_mapper = False
             lower_id = self.identifier
 
-            #First quick loop to have a global view of the other drones
+            # First quick loop to have a global view of the other drones
             for msg in received_messages:
                 sender_id = msg[1][0]
                 sender_was_mapping = msg[1][6]
@@ -182,9 +182,9 @@ class MyForceDrone(DroneAbstract):
                 sender_pos = msg[1][5]
                 sender_was_mapping = msg[1][6]
 
-                #Role management
+                # Role management
                 if self.role == self.Role.FOLLOWER:
-    
+
                     if sender_role == self.Role.LEADER:
                         found_leader = True
                         self.position_leader = sender_pos_leader
@@ -197,7 +197,7 @@ class MyForceDrone(DroneAbstract):
                         self.role = self.Role.LEADER
 
                 if self.role == self.Role.LEADER:
-                    
+
                     dx = sender_pos[0] - self.last_v_pos_x
                     dy = sender_pos[1] - self.last_v_pos_y
                     distance = math.sqrt(dx ** 2 + dy ** 2)
@@ -207,22 +207,23 @@ class MyForceDrone(DroneAbstract):
                         self.id_next_leader = sender_id
                         found_follower = True
 
-                #Map management
+                # Map management
                 if self.mapping:
                     if sender_was_mapping:
-                        sender_wall_bool_map = (sender_map == self.MapState.WALL)+(self.map == self.MapState.UNKNOWN)
-                        not_sender_wall_bool_map = sender_wall_bool_map==False
+                        sender_wall_bool_map = (
+                            sender_map == self.MapState.WALL)+(self.map == self.MapState.UNKNOWN)
+                        not_sender_wall_bool_map = sender_wall_bool_map == False
                         self.map = sender_wall_bool_map*sender_map + not_sender_wall_bool_map*self.map
                 else:
                     if sender_was_mapping or (not found_mapper and sender_id == lower_id):
                         self.map = sender_map
-                    
-            #Decide who will do what now
-            if len(received_messages) == 0 :
+
+            # Decide who will do what now
+            if len(received_messages) == 0:
                 '''if the drone is alone, it becomes a leader'''
                 self.role = self.Role.LEADER
 
-            #Decide who will map
+            # Decide who will map
             if self.role == self.Role.LEADER or self.identifier == lower_id:
                 self.mapping = True
 
@@ -239,7 +240,6 @@ class MyForceDrone(DroneAbstract):
 ################### FORCES #########################
 
     # Definition of the various forces used to control the drone
-
 
     def wall_force(self, distance, angle):
 
@@ -739,9 +739,16 @@ class MyForceDrone(DroneAbstract):
             self.change_pixel_value(int(x), int(y), self.MapState.EMPTY)
         return
 
-    def optimize_track(self):
-        last_pos = self.my_track[0:5]
-        for i in range(len(list))
+    def optimize_track(self, VAR_THRESHOLD):
+        new_track = [self.my_track[0]]
+        for i in range(1, len(self.my_track)-4, 5):
+            pos_set = self.my_track[i:i+5]
+            var_x = np.var([pos[0] for pos in pos_set])
+            var_y = np.var([pos[1] for pos in pos_set])
+            if var_x*var_y > VAR_THRESHOLD:
+                new_positions += pos_set
+        new_track += self.my_track[-4:]
+        return new_track
 
 ################### END MAPPING ###########################
 
@@ -846,6 +853,7 @@ class MyForceDrone(DroneAbstract):
 
 ################### END BACKUP BEHAVIOR (ANT) #####################
 
+
     def control(self):
         """
         The drone will behave differently according to its current state
@@ -862,7 +870,8 @@ class MyForceDrone(DroneAbstract):
         STUCK_TIMER = 80
 
         if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
-            self.my_track
+            VAR_THRESHOLD = 0.5
+            self.optimize_track()
             self.state = self.Activity.BACK_TRACKING
 
         elif self.state is self.Activity.BACK_TRACKING and len(self.my_track) == 0:
