@@ -361,86 +361,101 @@ class MyForceDrone(DroneAbstract):
         neg_ymin = -10000
         xmin = 10000
         ymin = 10000
-        wall_x = False
-        wall_y = False
-        pos_wall_x = True
-        pos_wall_y = False
-        neg_wall_x = True
-        neg_wall_y = False
+        pos_wall_x = 10000
+        neg_wall_x = -10000
+        pos_wall_y = 10000
+        neg_wall_y = -10000
+        wall_x = 10000
+        wall_y = 10000
+        bool_wall_x = False
+        bool_wall_y = False
+        bool_pos_wall_x = True
+        bool_pos_wall_y = True
+        bool_neg_wall_x = True
+        bool_neg_wall_y = True
         found_unknown = False
         for dx in range(self.force_field_size, 0, -1):
             if dx + pos_x < len(self.map):
                 if self.map[pos_x + dx, pos_y] == self.MapState.UNKNOWN:
                     pos_xmin = dx
-                    pos_wall_x = False
+                    bool_pos_wall_x = False
                     found_unknown = True
 
                 elif self.map[pos_x + dx, pos_y] == self.MapState.WALL:
-                    pos_wall_x = True
+                    bool_pos_wall_x = True
+                    pos_wall_x = pos_x + dx
 
                 elif self.map[pos_x + dx, pos_y] == self.MapState.INIT_RESCUE:
                     pos_xmin = 10000
-                    pos_wall_x = True
+                    bool_pos_wall_x = True
 
             if -dx + pos_x >= 0:
                 if self.map[pos_x - dx, pos_y] == self.MapState.UNKNOWN:
                     neg_xmin = -dx
-                    neg_wall_x = False
+                    bool_neg_wall_x = False
 
                 elif self.map[pos_x - dx, pos_y] == self.MapState.WALL:
-                    neg_wall_x = True
+                    bool_neg_wall_x = True
+                    neg_wall_x = pos_x - dx
 
                 elif self.map[pos_x - dx, pos_y] == self.MapState.INIT_RESCUE:
                     neg_xmin = -10000
-                    neg_wall_x = True
+                    bool_neg_wall_x = True
         
-        if (abs(neg_xmin) < pos_xmin and (not neg_wall_x or pos_wall_x)) or (pos_wall_x and not neg_wall_x):
+        if (abs(neg_xmin) < pos_xmin and (not bool_neg_wall_x or bool_pos_wall_x)) or (bool_pos_wall_x and not bool_neg_wall_x):
             xmin = neg_xmin
+            bool_wall_x = bool_neg_wall_x
             wall_x = neg_wall_x
         else:
             xmin = pos_xmin
-            wall_y = pos_wall_x
+            bool_wall_y = bool_pos_wall_x
+            wall_x = pos_wall_x
         #print("xmin = ", xmin)
 
         for dy in range(self.force_field_size, 0, -1):
             if dy + pos_y < len(self.map[0]):
                 if self.map[pos_x, pos_y + dy] == self.MapState.UNKNOWN:
                     pos_ymin = dy
-                    pos_wall_y = False
+                    bool_pos_wall_y = False
                     found_unknown = True
                 elif self.map[pos_x, pos_y + dy] == self.MapState.WALL:
-                    pos_wall_y = True
+                    bool_pos_wall_y = True
+                    pos_wall_y = pos_y + dy
 
                 elif self.map[pos_x, pos_y + dy] == self.MapState.INIT_RESCUE:
                     pos_ymin = 10000
-                    pos_wall_y = True
+                    bool_pos_wall_y = True
 
             if -dy + pos_y >= 0:
                 if self.map[pos_x, pos_y - dy] == self.MapState.UNKNOWN:
                     neg_ymin = -dy
-                    neg_wall_y = False
+                    bool_neg_wall_y = False
 
                 elif self.map[pos_x, pos_y - dy] == self.MapState.WALL:
-                    neg_wall_y = True
+                    bool_neg_wall_y = True
+                    neg_wall_y = pos_y - dy
 
                 elif self.map[pos_x, pos_y - dy] == self.MapState.INIT_RESCUE:
                     neg_ymin = 10000
-                    neg_wall_y = True
+                    bool_neg_wall_y = True
 
-        if (abs(neg_ymin) < pos_ymin and (not neg_wall_y or pos_wall_y)) or (pos_wall_y and not neg_wall_y):
+        if (abs(neg_ymin) < pos_ymin and (not bool_neg_wall_y or bool_pos_wall_y)) or (bool_pos_wall_y and not bool_neg_wall_y):
             ymin = neg_ymin
+            bool_wall_y = bool_neg_wall_y
             wall_y = neg_wall_y
         else:
             ymin = pos_ymin
+            bool_wall_y = bool_pos_wall_y
             wall_y = pos_wall_y
         #print("ymin = ", ymin)
-        print(found_unknown, xmin,ymin, wall_x, wall_y)
-        if (abs(xmin) < abs(ymin) and (not wall_x or wall_y)) or (wall_y and not wall_x):
+        print(found_unknown, xmin,ymin, bool_wall_x, bool_wall_y, wall_x,wall_y)
+
+        if (abs(xmin) < abs(ymin) and (not bool_wall_x or bool_wall_y)) or (bool_wall_y and not bool_wall_x):
             if xmin != 10000:
 
-                if wall_x:
+                if bool_wall_x:
                     target[1] = self.find_end_vertical_wall(
-                        pos_x, pos_y, xmin+pos_x)
+                        pos_x, pos_y, wall_x)
                     if target[1] != -1:
                         target[0] = xmin + pos_x
                 else:
@@ -448,9 +463,9 @@ class MyForceDrone(DroneAbstract):
                     target[1] = pos_y
 
         elif abs(ymin) != 10000:
-            if wall_y:
+            if bool_wall_y:
                 target[0] = self.find_end_horizontal_wall(
-                    pos_x, pos_y, ymin+pos_y)
+                    pos_x, pos_y, wall_y)
                 if target[0] != -1:
                     target[1] = ymin + pos_y
             else:
@@ -1042,7 +1057,7 @@ class MyForceDrone(DroneAbstract):
                            "grasper": 1}
 
                 force = self.total_force_with_semantic(
-                    detection_semantic, pos_x, pos_y, orientation)
+                    detection_semantic, pos_x, pos_y, orientation)[0]
 
                 #print("Total forces : ", end-start)
                 force_norm = force.norm()
