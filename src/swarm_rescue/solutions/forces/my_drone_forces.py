@@ -18,8 +18,7 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 #from spg.src.spg.agent.communicator import Communicator
 
-print_map = False
-
+print_map = True
 
 class ForceConstants():
     WALL_AMP = 10
@@ -65,7 +64,7 @@ class MyForceDrone(DroneAbstract):
         print(self.identifier)
 
         self.REDUCTION_COEF = 8
-        self.EXTRA_SIZE = int(round(5/self.REDUCTION_COEF))
+        self.EXTRA_SIZE = int(round(5/self.REDUCTION_COEF))*0
         self.map = - \
             np.ones((int(round(self.size_area[0]*2/self.REDUCTION_COEF)), int(round(
                     self.size_area[1]*2/self.REDUCTION_COEF))))
@@ -93,7 +92,7 @@ class MyForceDrone(DroneAbstract):
         self.last_v_pos_x, self.last_v_pos_y = 0, 0
         self.last_angle = 0
         #print(self.last_v_pos_x, self.last_v_pos_y)
-        self.MAX_CONSECUTIVE_COUNTER = 5
+        self.MAX_CONSECUTIVE_COUNTER = 4
 
         self.counter = 0
 
@@ -366,11 +365,13 @@ class MyForceDrone(DroneAbstract):
         pos_wall_y = False
         neg_wall_x = True
         neg_wall_y = False
+        found_unknown = False
         for dx in range(self.force_field_size, 0, -1):
             if dx + pos_x < len(self.map):
                 if self.map[pos_x + dx, pos_y] == self.MapState.UNKNOWN:
                     pos_xmin = dx
                     pos_wall_x = False
+                    found_unknown = True
 
                 elif self.map[pos_x + dx, pos_y] == self.MapState.WALL:
                     pos_wall_x = True
@@ -390,7 +391,7 @@ class MyForceDrone(DroneAbstract):
                 elif self.map[pos_x - dx, pos_y] == self.MapState.INIT_RESCUE:
                     neg_xmin = -10000
                     neg_wall_x = True
-
+        
         if (abs(neg_xmin) < pos_xmin and (not neg_wall_x or pos_wall_x)) or (pos_wall_x and not neg_wall_x):
             xmin = neg_xmin
             wall_x = neg_wall_x
@@ -404,7 +405,7 @@ class MyForceDrone(DroneAbstract):
                 if self.map[pos_x, pos_y + dy] == self.MapState.UNKNOWN:
                     pos_ymin = dy
                     pos_wall_y = False
-
+                    found_unknown = True
                 elif self.map[pos_x, pos_y + dy] == self.MapState.WALL:
                     pos_wall_y = True
 
@@ -431,7 +432,7 @@ class MyForceDrone(DroneAbstract):
             ymin = pos_ymin
             wall_y = pos_wall_y
         #print("ymin = ", ymin)
-
+        print(found_unknown)
         if (abs(xmin) < abs(ymin) and (not wall_x or wall_y)) or (wall_y and not wall_x):
             if xmin != 10000:
 
@@ -453,10 +454,11 @@ class MyForceDrone(DroneAbstract):
             else:
                 target[0] = pos_x
                 target[1] = ymin + pos_y
-
+        print(target)
         if target != [-1, -1]:
             dx = target[0]-pos_x
             dy = target[1]-pos_y
+            
             distance = math.sqrt(dx**2 + dy**2)
             angle_abs = math.atan2(dy, dx)
             #print("dx = ",dx,"dy = ",dy)
@@ -539,10 +541,6 @@ class MyForceDrone(DroneAbstract):
                 or self.map[x-1, ywall+1] == self.MapState.WALL \
                 or self.map[x+1, ywall+1] == self.MapState.WALL \
         
-
-
-
-
         while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x < 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF)) + self.EXTRA_SIZE):
             x += 1
             if not is_still_wall():
@@ -576,7 +574,7 @@ class MyForceDrone(DroneAbstract):
 
     def is_not_corner(self, pos_x, pos_y, x, y, from_wall_type):
         if from_wall_type is self.WallType.VERTICAL:
-            x_to_check = x-np.sign(x-pos_x)*int(round(10/self.REDUCTION_COEF))
+            x_to_check = x-np.sign(x-pos_x)*int(round(20/self.REDUCTION_COEF))
 
             consecutive_counter = 0
             for y_to_check in range(y, pos_y, np.sign(pos_y - y)):
@@ -586,7 +584,7 @@ class MyForceDrone(DroneAbstract):
                     return False
             return True
         else:
-            y_to_check = y-np.sign(y-pos_y)*10
+            y_to_check = y-np.sign(y-pos_y)*int(round(20/self.REDUCTION_COEF))
             consecutive_counter = 0
             for x_to_check in range(x, pos_x, np.sign(pos_x - x)):
                 if self.map[x_to_check, y_to_check] == self.MapState.WALL:
@@ -690,8 +688,14 @@ class MyForceDrone(DroneAbstract):
 
         return
 
-    def change_pixel_value(self, x, y, value):
+    def change_pixel_value(self, x, y, value, wall_type = None):
         self.map[x][y] = value
+        if wall_type is self.WallType.HORIZONTAL:
+            self.map[x+1][y] = value 
+            self.map[x-1][y] = value 
+        elif wall_type is self.WallType.VERTICAL:
+            self.map[x][y-1] = value 
+            self.map[x][y+1] = value 
         #self.map[x+1][y] = value
         #self.map[x+1][y+1] = value
         #self.map[x][y+1] = value
