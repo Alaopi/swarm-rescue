@@ -91,7 +91,7 @@ class MyForceDrone(DroneAbstract):
         self.last_v_pos_x, self.last_v_pos_y = 0, 0
         self.last_angle = 0
         #print(self.last_v_pos_x, self.last_v_pos_y)
-        self.MAX_CONSECUTIVE_COUNTER = 10
+        self.MAX_CONSECUTIVE_COUNTER = 5
 
         self.counter = 0
 
@@ -480,20 +480,34 @@ class MyForceDrone(DroneAbstract):
         yhaut = -1
         ybas = -1
 
+        def is_still_wall():
+            return self.map[xwall, y] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall, y-1] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall, y+1] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall+1, y] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall+1, y-1] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall+1, y+1] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall-1, y] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall-1, y-1] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+            or self.map[xwall-1, y+1] in [self.MapState.EMPTY, self.MapState.UNKNOWN] \
+           
+        
         while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and y < 3*int(round(self.size_area[1]/2/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
             y += 1
-            if self.map[xwall, y] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[xwall, y-1] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
+            if not is_still_wall():
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
         if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and self.is_not_corner(pos_x, pos_y, xwall, y, self.WallType.VERTICAL):
             yhaut = y
             #print("Vertical Wall Up")
+
         consecutive_counter = 0
         y = pos_y
+        
         while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and y >= int(round(self.size_area[1]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE):
             y -= 1
-            if self.map[xwall, y] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[xwall, y+1] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
+            if not is_still_wall():
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
@@ -511,9 +525,25 @@ class MyForceDrone(DroneAbstract):
         x = pos_x
         xright = -1
         xleft = -1
+
+        def is_still_wall():
+            return self.map[x, ywall] == self.MapState.WALL \
+                or self.map[x-1, ywall] == self.MapState.WALL \
+                or self.map[x+1, ywall] == self.MapState.WALL \
+                or self.map[x, ywall-1] == self.MapState.WALL \
+                or self.map[x-1, ywall-1] == self.MapState.WALL \
+                or self.map[x+1, ywall-1] == self.MapState.WALL \
+                or self.map[x, ywall+1] == self.MapState.WALL \
+                or self.map[x-1, ywall+1] == self.MapState.WALL \
+                or self.map[x+1, ywall+1] == self.MapState.WALL \
+        
+
+
+
+
         while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x < 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF)) + self.EXTRA_SIZE):
             x += 1
-            if self.map[x, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[x-1, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
+            if not is_still_wall():
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
@@ -528,7 +558,7 @@ class MyForceDrone(DroneAbstract):
         while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x >= int(round(self.size_area[0]/2/self.REDUCTION_COEF))
               - self.EXTRA_SIZE):
             x -= 1
-            if self.map[x, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[x+1, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
+            if not is_still_wall():
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
@@ -660,13 +690,13 @@ class MyForceDrone(DroneAbstract):
 
     def change_pixel_value(self, x, y, value):
         self.map[x][y] = value
-        self.map[x+1][y] = value
+        #self.map[x+1][y] = value
         #self.map[x+1][y+1] = value
-        self.map[x][y+1] = value
+        #self.map[x][y+1] = value
         #self.map[x-1][y+1] = value
-        self.map[x-1][y] = value
+        #self.map[x-1][y] = value
         #self.map[x-1][y-1] = value
-        self.map[x][y-1] = value
+        #self.map[x][y-1] = value
 
     def map_walls_lidar(self, the_lidar_sensor, sem_detected_angles, sem_resolution, pos_x, pos_y, orientation):
 
@@ -869,7 +899,7 @@ class MyForceDrone(DroneAbstract):
         if self.role == self.Role.FOLLOWER:
             self.state is self.Activity.FOLLOWING
 
-        if self.counter % 20 == 0:
+        if self.counter % 20 == 0 and self.counter > 0:
             if self.Behavior == self.behavior.NOMINAL and self.stuck_movement < STUCK_THRESHOLD:
                 #print("SWITCHING BEHAVIOR TO ANT")
                 self.stuck_movement = STUCK_THRESHOLD
@@ -921,7 +951,7 @@ class MyForceDrone(DroneAbstract):
         #print("Update maps : ", end-start)
 
         ########### PLOT ###########
-        """
+        
         if self.counter % 100 == 0:
 
             plt.pcolormesh(self.map.T)
@@ -932,7 +962,7 @@ class MyForceDrone(DroneAbstract):
             plt.show()
             plt.close()
         #print("Update map : ", end-start)
-        """
+        
         ########### END PLOT ##########
         start1 = time.time()
         if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
