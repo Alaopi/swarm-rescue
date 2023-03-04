@@ -63,17 +63,17 @@ class MyForceDrone(DroneAbstract):
         print(self.identifier)
 
         self.REDUCTION_COEF = 8
-        self.EXTRA_SIZE = 5//self.REDUCTION_COEF
+        self.EXTRA_SIZE = int(round(5/self.REDUCTION_COEF))
         self.map = - \
-            np.ones((self.size_area[0]*2//self.REDUCTION_COEF,
-                    self.size_area[1]*2//self.REDUCTION_COEF))
+            np.ones((int(round(self.size_area[0]*2/self.REDUCTION_COEF)),int(round(
+                    self.size_area[1]*2/self.REDUCTION_COEF))))
 
-        for x in range(self.size_area[0]//2//self.REDUCTION_COEF - self.EXTRA_SIZE, 3*(self.size_area[0]//2)//self.REDUCTION_COEF + self.EXTRA_SIZE):
-            for y in range(self.size_area[1]//2//self.REDUCTION_COEF - self.EXTRA_SIZE, 3*(self.size_area[1]//2)//self.REDUCTION_COEF + self.EXTRA_SIZE):
+        for x in range(int(round(self.size_area[0]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
+            for y in range(int(round(self.size_area[1]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[1]/2)/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
                 self.map[x, y] = 0
 
-        self.x_shift = self.size_area[0]//self.REDUCTION_COEF
-        self.y_shift = self.size_area[1]//self.REDUCTION_COEF
+        self.x_shift = int(round(self.size_area[0]/self.REDUCTION_COEF))
+        self.y_shift = int(round(self.size_area[1]/self.REDUCTION_COEF))
         self.NB_DRONES = misc_data.number_drones
         self.my_track = []
 
@@ -81,14 +81,14 @@ class MyForceDrone(DroneAbstract):
         self.state = self.Activity.SEARCHING_WOUNDED
 
         # increase when we no longer find unknown places
-        self.force_field_size = 200//self.REDUCTION_COEF
+        self.force_field_size = int(round(200/self.REDUCTION_COEF))
         self.count_no_unknown_found = 0
         self.MAX_BEFORE_INCREASE = 5
 
-        self.last_pos_x, self.last_pos_y = 0, 0
+        self.last_v_pos_x, self.last_v_pos_y = 0, 0
         self.last_angle = 0
-        print(self.last_pos_x, self.last_pos_y)
-        self.MAX_CONSECUTIVE_COUNTER = 15
+        #print(self.last_v_pos_x, self.last_v_pos_y)
+        self.MAX_CONSECUTIVE_COUNTER = 10
 
         self.counter = 0
 
@@ -99,20 +99,22 @@ class MyForceDrone(DroneAbstract):
             self.position_leader = [-1, -1]
         else:
             self.role = self.Role.FOLLOWER
+        self.role = self.Role.LEADER
         self.position_leader = [-1, -1]
         self.id_next_leader = -1
 
     def define_message_for_all(self):
-
+        
         id_new_leader = -1
         if self.role == self.Role.LEADER and self.state is self.Activity.BACK_TRACKING:
-            print("kf,d")
+            print("Changing leader")
             id_new_leader = self.id_next_leader
             self.role = self.Role.NEUTRAL
         msg_data = (self.identifier, self.role, self.map, self.position_leader, id_new_leader, [
-                    self.last_pos_x, self.last_pos_y])  # à voir comment est defini self.map
-        #found = self.process_communication_sensor(self)
+                    self.last_v_pos_x, self.last_v_pos_y])  
         return msg_data
+    
+        pass
 
     class Activity(Enum):  # Possible values of self.state which gives the current action of the drone
         """
@@ -162,8 +164,8 @@ class MyForceDrone(DroneAbstract):
 
                 if self.role == self.Role.LEADER:
                     sender_pos = msg[1][5]
-                    dx = sender_pos[0] - self.last_pos_x
-                    dy = sender_pos[1] - self.last_pos_y
+                    dx = sender_pos[0] - self.last_v_pos_x
+                    dy = sender_pos[1] - self.last_v_pos_y
                     distance = math.sqrt(dx ** 2 + dy ** 2)
                     if distance < min_dist:
                         min_dist = distance
@@ -235,7 +237,7 @@ class MyForceDrone(DroneAbstract):
         if distance > 60/self.REDUCTION_COEF:
             f = Vector()  # null : angle
         else:
-            f = Vector(ForceConstants.DRONE_AMP*distance, angle-np.pi)  # attractive : angle
+            f = Vector(ForceConstants.DRONE_AMP*distance*0, angle-np.pi)  # attractive : angle
         return f
 
         return f
@@ -268,7 +270,6 @@ class MyForceDrone(DroneAbstract):
             f = Vector(amplitude, angle_rel-np.pi)  # attractive : angle
         return f
 
-    # Should be working, don't need GPS
     def total_force_with_semantic(self, detection_semantic, pos_x, pos_y, orientation):
         forces = []
         angles = []
@@ -300,7 +301,7 @@ class MyForceDrone(DroneAbstract):
 
         if self.state is self.Activity.SEARCHING_WOUNDED:
             forces.append(self.wall_force_lidar(
-                self.lidar(), angles, self.semantic().resolution, pos_x, pos_y))
+                self.lidar(), angles, self.semantic().resolution))
             forces.append(self.force_unknown_from_map(
                 pos_x, pos_y, orientation))
         total_force = Vector()
@@ -325,28 +326,28 @@ class MyForceDrone(DroneAbstract):
         pos_wall_y = False
         neg_wall_x = True
         neg_wall_y = False
-        for x in range(self.force_field_size, 0, -1):
-            if x + pos_x < len(self.map):
-                if self.map[pos_x + x, pos_y] == self.MapState.UNKNOWN:
-                    pos_xmin = x
+        for dx in range(self.force_field_size, 0, -1):
+            if dx + pos_x < len(self.map):
+                if self.map[pos_x + dx, pos_y] == self.MapState.UNKNOWN:
+                    pos_xmin = dx
                     pos_wall_x = False
 
-                elif self.map[pos_x + x, pos_y] == self.MapState.WALL:
+                elif self.map[pos_x + dx, pos_y] == self.MapState.WALL:
                     pos_wall_x = True
 
-                elif self.map[pos_x + x, pos_y] == self.MapState.INIT_RESCUE:
+                elif self.map[pos_x + dx, pos_y] == self.MapState.INIT_RESCUE:
                     pos_xmin = 10000
                     pos_wall_x = True
 
-            if -x + pos_x >= 0:
-                if self.map[pos_x - x, pos_y] == self.MapState.UNKNOWN:
-                    neg_xmin = -x
+            if -dx + pos_x >= 0:
+                if self.map[pos_x - dx, pos_y] == self.MapState.UNKNOWN:
+                    neg_xmin = -dx
                     neg_wall_x = False
 
-                elif self.map[pos_x - x, pos_y] == self.MapState.WALL:
+                elif self.map[pos_x - dx, pos_y] == self.MapState.WALL:
                     neg_wall_x = True
 
-                elif self.map[pos_x - x, pos_y] == self.MapState.INIT_RESCUE:
+                elif self.map[pos_x - dx, pos_y] == self.MapState.INIT_RESCUE:
                     neg_xmin = -10000
                     neg_wall_x = True
 
@@ -358,28 +359,28 @@ class MyForceDrone(DroneAbstract):
             wall_y = pos_wall_x
         #print("xmin = ", xmin)
 
-        for y in range(self.force_field_size, 0, -1):
-            if y + pos_y < len(self.map[0]):
-                if self.map[pos_x, pos_y + y] == self.MapState.UNKNOWN:
-                    pos_ymin = y
+        for dy in range(self.force_field_size, 0, -1):
+            if dy + pos_y < len(self.map[0]):
+                if self.map[pos_x, pos_y + dy] == self.MapState.UNKNOWN:
+                    pos_ymin = dy
                     pos_wall_y = False
 
-                elif self.map[pos_x, pos_y + y] == self.MapState.WALL:
+                elif self.map[pos_x, pos_y + dy] == self.MapState.WALL:
                     pos_wall_y = True
 
-                elif self.map[pos_x, pos_y + y] == self.MapState.INIT_RESCUE:
+                elif self.map[pos_x, pos_y + dy] == self.MapState.INIT_RESCUE:
                     pos_ymin = 10000
                     pos_wall_y = True
 
-            if -y + pos_y >= 0:
-                if self.map[pos_x, pos_y - y] == self.MapState.UNKNOWN:
-                    neg_ymin = -y
+            if -dy + pos_y >= 0:
+                if self.map[pos_x, pos_y - dy] == self.MapState.UNKNOWN:
+                    neg_ymin = -dy
                     neg_wall_y = False
 
-                elif self.map[pos_x, pos_y - y] == self.MapState.WALL:
+                elif self.map[pos_x, pos_y - dy] == self.MapState.WALL:
                     neg_wall_y = True
 
-                elif self.map[pos_x, pos_y - y] == self.MapState.INIT_RESCUE:
+                elif self.map[pos_x, pos_y - dy] == self.MapState.INIT_RESCUE:
                     neg_ymin = 10000
                     neg_wall_y = True
 
@@ -395,7 +396,7 @@ class MyForceDrone(DroneAbstract):
             if xmin != 10000:
 
                 if wall_x:
-                    target[1] = self.find_end_vertical_wall(pos_y, xmin+pos_x)
+                    target[1] = self.find_end_vertical_wall(pos_x, pos_y, xmin+pos_x)
                     if target[1] != -1:
                         target[0] = xmin + pos_x
                 else:
@@ -404,7 +405,7 @@ class MyForceDrone(DroneAbstract):
 
         elif abs(ymin) != 10000:
             if wall_y:
-                target[0] = self.find_end_horizontal_wall(pos_x, ymin+pos_y)
+                target[0] = self.find_end_horizontal_wall(pos_x, pos_y, ymin+pos_y)
                 if target[0] != -1:
                     target[1] = ymin + pos_y
             else:
@@ -423,75 +424,106 @@ class MyForceDrone(DroneAbstract):
             return self.unknown_place_force(distance, angle_rel)
         else:
             self.count_no_unknown_found += 1
-            if self.count_no_unknown_found == self.MAX_BEFORE_INCREASE and self.force_field_size <= max(self.size_area[0], self.size_area[1])//self.REDUCTION_COEF:
-                self.force_field_size += 10//self.REDUCTION_COEF
+            if self.count_no_unknown_found == self.MAX_BEFORE_INCREASE and self.force_field_size <= int(round(max(self.size_area[0], self.size_area[1])/self.REDUCTION_COEF)):
+                self.force_field_size += int(round(50/self.REDUCTION_COEF))
                 self.count_no_unknown_found = 0
             return Vector()
 
-    def find_end_vertical_wall(self, pos_y, xwall):
+    class WallType():
+        VERTICAL = 10
+        HORIZONTAL = 11
+
+    def find_end_vertical_wall(self, pos_x, pos_y, xwall):
+        
         consecutive_counter = 0
         y = pos_y
         yhaut = -1
         ybas = -1
 
-        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and y < 3*(self.size_area[1]//2)//self.REDUCTION_COEF + self.EXTRA_SIZE):
+        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and y < 3*int(round(self.size_area[1]/2/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
             y += 1
             if self.map[xwall, y] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[xwall, y-1] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
-        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER:
+        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and self.is_not_corner(pos_x, pos_y, xwall, y, self.WallType.VERTICAL):
             yhaut = y
+            print("Vertical Wall Up")
         consecutive_counter = 0
         y = pos_y
-        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and y >= self.size_area[1]//2//self.REDUCTION_COEF - self.EXTRA_SIZE):
+        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and y >= int(round(self.size_area[1]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE):
             y -= 1
             if self.map[xwall, y] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[xwall, y+1] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
-        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER:
+        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and self.is_not_corner(pos_x, pos_y, xwall, y, self.WallType.VERTICAL):
             ybas = y
+            print("Vertical Wall Down")
 
         if abs(ybas-pos_y) < abs(yhaut - pos_y):
             return ybas
         else:
             return yhaut
 
-    def find_end_horizontal_wall(self, pos_x, ywall):
+    def find_end_horizontal_wall(self, pos_x, pos_y, ywall):
         consecutive_counter = 0
         x = pos_x
         xright = -1
         xleft = -1
-        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x < 3*(self.size_area[0]//2)//self.REDUCTION_COEF + self.EXTRA_SIZE):
+        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x < 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF)) + self.EXTRA_SIZE):
             x += 1
             if self.map[x, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[x-1, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
 
-        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER:
+        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL):
             xright = x
+            print("Horizontal Wall Right")
 
         x = pos_x
         consecutive_counter = 0
 
-        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x >= self.size_area[0]//2//self.REDUCTION_COEF - self.EXTRA_SIZE):
+        while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x >= int(round(self.size_area[0]/2/self.REDUCTION_COEF))
+         - self.EXTRA_SIZE):
             x -= 1
             if self.map[x, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN] and self.map[x+1, ywall] in [self.MapState.EMPTY, self.MapState.UNKNOWN]:
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
 
-        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER:
+        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL):
             xleft = x
+            print("Horizontal Wall Left")
 
         if abs(xleft-pos_x) < abs(xright - pos_x):
             return xleft
         else:
             return xright
 
-    def wall_force_lidar(self, the_lidar_sensor, sem_detected_angles, sem_resolution, pos_x, pos_y):
+    def is_not_corner(self,pos_x, pos_y, x, y, from_wall_type):
+        if from_wall_type is self.WallType.VERTICAL :
+            x_to_check = x-np.sign(x-pos_x)*int(round(10/self.REDUCTION_COEF))
+
+            consecutive_counter = 0
+            for y_to_check in range(y, pos_y, np.sign(pos_y - y)):
+                if self.map[x_to_check,y_to_check] == self.MapState.WALL:
+                    consecutive_counter += 1
+                if consecutive_counter == 3:
+                    return False
+            return True
+        else : 
+            y_to_check = y-np.sign(y-pos_y)*10
+            consecutive_counter = 0
+            for x_to_check in range(x, pos_x, np.sign(pos_x - x)):
+                if self.map[x_to_check,y_to_check] == self.MapState.WALL:
+                    consecutive_counter += 1
+                if consecutive_counter == 5:
+                    return False
+            return True
+
+    def wall_force_lidar(self, the_lidar_sensor, sem_detected_angles, sem_resolution):
         total_wall_force = Vector()
 
         values = the_lidar_sensor.get_sensor_values()
@@ -548,8 +580,8 @@ class MyForceDrone(DroneAbstract):
         for data in detection_semantic:
 
             angle = orientation + data.angle
-            dx = round(data.distance*math.cos(angle)/self.REDUCTION_COEF)
-            dy = round(data.distance*math.sin(angle)/self.REDUCTION_COEF)
+            dx = int(round(data.distance*math.cos(angle)/self.REDUCTION_COEF))
+            dy = int(round(data.distance*math.sin(angle)/self.REDUCTION_COEF))
             data_x = pos_x + dx
             data_y = pos_y + dy
 
@@ -695,24 +727,24 @@ class MyForceDrone(DroneAbstract):
         if self.measured_gps_position() is None or self.measured_compass_angle() is None:
 
             dist_traveled, alpha, theta = self.odometer_values()
-            print("Odometer values: ", dist_traveled, alpha, theta)
-            pos_x = int(np.round(self.last_pos_x + dist_traveled *
-                        math.cos(alpha + self.last_angle)/self.REDUCTION_COEF/1.2))
-            pos_y = int(np.round(self.last_pos_y + dist_traveled *
-                        math.sin(alpha + self.last_angle)/self.REDUCTION_COEF/1.2))
-            orientation = self.last_angle + theta*1.
+            #print("Odometer values: ", dist_traveled, alpha, theta)
+            v_pos_x = int(round(self.last_v_pos_x + dist_traveled *
+                        math.cos(alpha + self.last_angle)))
+            v_pos_y = int(round(self.last_v_pos_y + dist_traveled *
+                        math.sin(alpha + self.last_angle)))
+            orientation = self.last_angle + theta
             #print("*", pos_x, pos_y, orientation)
 
         else:
             v_pos_x, v_pos_y = self.measured_gps_position()
-            v_orientation = self.measured_compass_angle()
-            v_pos_x = round(v_pos_x/self.REDUCTION_COEF) + \
-                self.x_shift  # index of the drone in the map
-            v_pos_y = round(v_pos_y/self.REDUCTION_COEF) + self.y_shift
-
-            pos_x, pos_y, orientation = v_pos_x, v_pos_y, v_orientation
-
-            #print(pos_x, pos_y, orientation)
+            orientation = self.measured_compass_angle()
+        
+        pos_x = int(round(v_pos_x/self.REDUCTION_COEF)) + self.x_shift  # index of the drone in the map
+        pos_y = int(round(v_pos_y/self.REDUCTION_COEF)) + self.y_shift
+        self.last_v_pos_x = v_pos_x
+        self.last_v_pos_y = v_pos_y
+        self.last_angle = orientation
+        #print(pos_x, pos_y, orientation)
 
         start = time.time()
         self.receive_maps()
@@ -722,8 +754,8 @@ class MyForceDrone(DroneAbstract):
         start = time.time()
         #self.update_map(detection_semantic, pos_x, pos_y, orientation)
         end = time.time()
-        '''
-        if self.counter % 50 == 0:
+        
+        if self.counter % 100 == 0:
 
             plt.pcolormesh(self.map.T)
             plt.colorbar()
@@ -733,7 +765,7 @@ class MyForceDrone(DroneAbstract):
             plt.show()
             plt.close()
         #print("Update map : ", end-start)
-        '''
+        
 
         if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
             self.update_map(detection_semantic, pos_x, pos_y, orientation)
@@ -799,7 +831,6 @@ class MyForceDrone(DroneAbstract):
                                # We try to align the force and the front side of the drone
                                "rotation": lateral_force,
                                "grasper": 1}
-            self.position_leader = [pos_x, pos_y]
         else:
             command = {"forward": 0,
                        "lateral": 0,
@@ -807,6 +838,8 @@ class MyForceDrone(DroneAbstract):
                        "grasper": 0}
 
             target = self.position_leader
+            target[0] = int(round(target[0]/self.REDUCTION_COEF))+self.x_shift
+            target[1] = int(round(target[1]/self.REDUCTION_COEF))+self.y_shift
             # print(target)
             force = self.follow_force(pos_x, pos_y, orientation, target)
             # print(force.x,force.y)
@@ -826,8 +859,10 @@ class MyForceDrone(DroneAbstract):
 
         #print(self.map[pos_x-10:pos_x + 10, pos_y-10:pos_y + 10])
         self.last_angle = orientation
-        self.last_pos_x = pos_x
-        self.last_pos_y = pos_y
+        self.last_v_pos_x = v_pos_x
+        self.last_v_pos_y = v_pos_y
+        if self.role is self.Role.LEADER :
+            self.position_leader = [v_pos_x, v_pos_y]
         self.counter += 1
         # print(command)
         return command
