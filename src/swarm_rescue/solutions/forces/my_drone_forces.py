@@ -72,8 +72,8 @@ class MyForceDrone(DroneAbstract):
             np.ones((int(round(self.size_area[0]*2/self.REDUCTION_COEF)), int(round(
                     self.size_area[1]*2/self.REDUCTION_COEF))))
 
-        for x in range(int(round(self.size_area[0]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
-            for y in range(int(round(self.size_area[1]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[1]/2)/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
+        for x in range(int(round(self.size_area[0]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF)) + self.EXTRA_SIZE):
+            for y in range(int(round(self.size_area[1]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[1]/2)/self.REDUCTION_COEF)) + self.EXTRA_SIZE):
                 self.map[x, y] = 0
 
         self.MAP0 = np.copy(self.map)
