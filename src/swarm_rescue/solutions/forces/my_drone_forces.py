@@ -18,7 +18,7 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 # from spg.src.spg.agent.communicator import Communicator
 
-print_map = False
+print_map = True
 
 
 class ForceConstants():
@@ -484,8 +484,6 @@ class MyForceDrone(DroneAbstract):
                 target[1] = ymin + pos_y
         # print(target)
         if target != [-1, -1]:
-            if self.state is self.Activity.TEMP_BACK_TRACKING:
-                self.state = self.Activity.SEARCHING_WOUNDED
 
             dx = target[0]-pos_x
             dy = target[1]-pos_y
@@ -587,6 +585,7 @@ class MyForceDrone(DroneAbstract):
 
         if (not left_is_not_corner) and (not left_is_not_corner):
             self.state = self.Activity.TEMP_BACK_TRACKING
+            print("Temporary backtrack")
 
         if abs(xleft-pos_x) < abs(xright - pos_x):
             return xleft
@@ -981,7 +980,7 @@ class MyForceDrone(DroneAbstract):
                    "grasper": 0}
 
         #self.stuck_movement += self.odometer_values()[0]
-
+        
         if self.counter % 15 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
             POS_THRESHOLD = 0.8
             nb_consecutive_positions = 5
@@ -1009,19 +1008,26 @@ class MyForceDrone(DroneAbstract):
             self.state = self.Activity.BACK_TRACKING
 
         elif self.state is self.Activity.BACK_TRACKING and found_rescue_center:
+            #print("DROPPING_AT_RESCUE_CENTER")
             self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
 
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
             self.state = self.Activity.SEARCHING_WOUNDED
             self.my_track = []
             self.map = (self.map == self.MapState.WALL)*self.map + (self.map != self.MapState.WALL)*self.MAP0
-            print("Erasing map")
+            #print("Erasing map")
             self.force_field_size = int(round(200/self.REDUCTION_COEF))
         
-        
+        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
+            self.state = self.Activity.BACK_TRACKING
+
+        elif self.state is self.Activity.TEMP_BACK_TRACKING and found_rescue_center:
+            print("Searching wounded")
+            self.state = self.Activity.SEARCHING_WOUNDED
 
         if self.role == self.Role.FOLLOWER:
             self.state is self.Activity.FOLLOWING
+
         '''
         if self.counter % 10 == 0 and self.counter > 0:
             if self.Behavior == self.behavior.NOMINAL and self.stuck_movement < STUCK_THRESHOLD:
@@ -1115,7 +1121,7 @@ class MyForceDrone(DroneAbstract):
                            "lateral": 0,
                            "rotation": 0,
                            "grasper": 1}
-
+                print("Backtracking")
                 if len(self.my_track) > 0:
                     target = self.my_track[-1]
                     force = self.track_force(pos_x, pos_y, orientation, target)
@@ -1129,14 +1135,16 @@ class MyForceDrone(DroneAbstract):
                                    # We try to align the force and the front side of the drone
                                    "rotation": lateral_force,
                                    "grasper": 1}
-                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 30/self.REDUCTION_COEF:
+                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
                         self.my_track.pop()
+            
+                    
 
             if self.state is self.Activity.TEMP_BACK_TRACKING:
                 command = {"forward": 0,
                            "lateral": 0,
                            "rotation": 0,
-                           "grasper": 1}
+                           "grasper": 0}
 
                 if len(self.my_track) > 0:
                     target = self.my_track[-1]
