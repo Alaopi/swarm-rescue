@@ -153,7 +153,6 @@ class MyForceDrone(DroneAbstract):
         DROPPING_AT_RESCUE_CENTER = 4
         FOLLOWING = 5
         TEMP_BACK_TRACKING = 6
-        RETRACKING = 7
 
     class Role(Enum):  # Possible values of self.state which gives the current action of the drone
         """
@@ -271,7 +270,7 @@ class MyForceDrone(DroneAbstract):
                 math.exp(-ForceConstants.WALL_DAMP *
                          distance/self.size_area[0])
             f = Vector(amplitude, angle-np.pi)  # repulsive : angle-Pi
-        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
+        else self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
             amplitude = ForceConstants.RESCUE_AMP * distance
             f = Vector(amplitude, angle)  # attractive : angle-Pi
         return f
