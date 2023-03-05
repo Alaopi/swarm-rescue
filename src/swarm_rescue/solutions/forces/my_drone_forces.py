@@ -30,8 +30,9 @@ class ForceConstants():
     UNKNOWN_DAMP = 1
     DRONE_DAMP = 1000
     RESCUE_DAMP = 10
-    TRACK_AMP = 50000
+    TRACK_AMP = 15000
     FOLLOW_AMP = 1000
+    WOUNDED_AMP = 5000
 
 
 class Vector:
@@ -287,16 +288,24 @@ class MyForceDrone(DroneAbstract):
             math.exp(-ForceConstants.DRONE_DAMP *
                      distance/(self.size_area[0]))*0
         f = Vector(amplitude, angle-np.pi)  # repulsive : angle-pi'''
-        if distance > 60/self.REDUCTION_COEF:
+        print(distance)
+        if distance > 55:
             f = Vector()  # null : angle
         else:
             f = Vector(ForceConstants.DRONE_AMP*distance *
-                       0, angle-np.pi)  # attractive : angle
+                       0, angle-np.pi)  # repulsive : angle-pi
         return f
 
-    def wounded_force(self, distance, angle):
-        amplitude = 5000*distance
-        f = Vector(amplitude, angle)  # attractive : angle
+    def wounded_force(self, distance, angle, grasped):
+        if (not grasped) :
+            amplitude = ForceConstants.WOUNDED_AMP*distance
+            f = Vector(amplitude, angle)  # attractive : angle
+        else : 
+            if distance > 80:
+                f = Vector()  # null : angle
+            else:
+                f = Vector(ForceConstants.WOUNDED_AMP*distance *
+                        0, angle-np.pi)  # repulsive : angle-pi
         return f
 
     def track_force(self, pos_x, pos_y, orientation, target):
@@ -334,14 +343,11 @@ class MyForceDrone(DroneAbstract):
 
             if data.entity_type == DroneSemanticSensor.TypeEntity.WOUNDED_PERSON:
                 # if the detected person is not grasped, we are attracted by it, otherwise there is another drone that creates a repulsive force
-                if (not data.grasped) and self.state is self.Activity.SEARCHING_WOUNDED:
+                if self.state is self.Activity.SEARCHING_WOUNDED:
                     forces.append(self.wounded_force(
-                        data.distance, data.angle))
-                    if data.distance < 50:
+                        data.distance, data.angle, data.grasped))
+                    if data.distance < 30 and (not data.grasped):
                         need_to_grasp = True
-                else:
-                    forces.append(self.drone_force(
-                        data.distance, data.angle))
 
             if data.entity_type == DroneSemanticSensor.TypeEntity.RESCUE_CENTER:
                 forces.append(self.rescue_center_force(
