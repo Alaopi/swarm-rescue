@@ -18,7 +18,7 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 # from spg.src.spg.agent.communicator import Communicator
 
-print_map = True
+print_map = False
 
 
 class ForceConstants():
@@ -148,6 +148,7 @@ class MyForceDrone(DroneAbstract):
         BACK_TRACKING = 3
         DROPPING_AT_RESCUE_CENTER = 4
         FOLLOWING = 5
+        TEMP_BACK_TRACKING = 6
 
     class Role(Enum):  # Possible values of self.state which gives the current action of the drone
         """
@@ -483,6 +484,9 @@ class MyForceDrone(DroneAbstract):
                 target[1] = ymin + pos_y
         # print(target)
         if target != [-1, -1]:
+            if self.state is self.Activity.TEMP_BACK_TRACKING:
+                self.state = self.Activity.SEARCHING_WOUNDED
+
             dx = target[0]-pos_x
             dy = target[1]-pos_y
 
@@ -561,8 +565,8 @@ class MyForceDrone(DroneAbstract):
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
-
-        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL):
+        right_is_not_corner = self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL)
+        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and right_is_not_corner:
             xright = x
             # print("Horizontal Wall Right")
 
@@ -576,10 +580,13 @@ class MyForceDrone(DroneAbstract):
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
-
-        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL):
+        left_is_not_corner = self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL)
+        if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and left_is_not_corner:
             xleft = x
             # print("Horizontal Wall Left")
+
+        if (not left_is_not_corner) and (not left_is_not_corner):
+            self.state = self.Activity.TEMP_BACK_TRACKING
 
         if abs(xleft-pos_x) < abs(xright - pos_x):
             return xleft
@@ -801,6 +808,17 @@ class MyForceDrone(DroneAbstract):
                 self.change_pixel_value(int(x), int(y), self.MapState.EMPTY)
         return
 
+    def update_track(self, pos_x, pos_y, DIST_MIN):
+        def distance(p1, p2):
+            return ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5
+        
+        for i in range(len(self.my_track)):
+            if distance((pos_x,pos_y), self.my_track[i]) < DIST_MIN:
+                self.my_track = self.my_track[:i+1]
+                break
+        
+        self.my_track.append((pos_x, pos_y))
+
     def optimize_track(self, VAR_THRESHOLD):
         new_track = [self.my_track[0]]
         nb_consecutive_positions = 5
@@ -999,6 +1017,8 @@ class MyForceDrone(DroneAbstract):
             self.map = (self.map == self.MapState.WALL)*self.map + (self.map != self.MapState.WALL)*self.MAP0
             print("Erasing map")
             self.force_field_size = int(round(200/self.REDUCTION_COEF))
+        
+        
 
         if self.role == self.Role.FOLLOWER:
             self.state is self.Activity.FOLLOWING
@@ -1070,7 +1090,7 @@ class MyForceDrone(DroneAbstract):
         start1 = time.time()
         if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
             if self.state is self.Activity.SEARCHING_WOUNDED:
-                self.my_track.append((pos_x, pos_y))
+                self.update_track(pos_x,pos_y, 3)
                 start = time.time()
                 force, need_to_grasp = self.total_force_with_semantic(
                     detection_semantic, pos_x, pos_y, orientation)
@@ -1099,6 +1119,30 @@ class MyForceDrone(DroneAbstract):
                 if len(self.my_track) > 0:
                     target = self.my_track[-1]
                     force = self.track_force(pos_x, pos_y, orientation, target)
+                    force_norm = force.norm()
+                    if force_norm != 0:
+                        forward_force = force.x/force_norm
+                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                        lateral_force = force.y/force_norm
+                        command = {"forward": forward_force,
+                                   "lateral": lateral_force,
+                                   # We try to align the force and the front side of the drone
+                                   "rotation": lateral_force,
+                                   "grasper": 1}
+                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 30/self.REDUCTION_COEF:
+                        self.my_track.pop()
+
+            if self.state is self.Activity.TEMP_BACK_TRACKING:
+                command = {"forward": 0,
+                           "lateral": 0,
+                           "rotation": 0,
+                           "grasper": 1}
+
+                if len(self.my_track) > 0:
+                    target = self.my_track[-1]
+                    force = self.track_force(pos_x, pos_y, orientation, target)
+                    #Just to check if we can stop the temporary backtracking
+                    self.force_unknown_from_map(pos_x, pos_y, orientation)
                     force_norm = force.norm()
                     if force_norm != 0:
                         forward_force = force.x/force_norm
@@ -1141,6 +1185,8 @@ class MyForceDrone(DroneAbstract):
                                "rotation": lateral_force,
                                "grasper": 1}
                 '''
+
+
         else:
             command = {"forward": 0,
                        "lateral": 0,
