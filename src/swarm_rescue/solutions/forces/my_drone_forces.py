@@ -66,7 +66,7 @@ class MyForceDrone(DroneAbstract):
         #print(self.identifier)
 
         self.REDUCTION_COEF = 8
-        self.EXTRA_SIZE = int(round(5/self.REDUCTION_COEF))*0
+        self.EXTRA_SIZE = -2
         self.map = - \
             np.ones((int(round(self.size_area[0]*2/self.REDUCTION_COEF)), int(round(
                     self.size_area[1]*2/self.REDUCTION_COEF))))
@@ -93,14 +93,14 @@ class MyForceDrone(DroneAbstract):
         self.state = self.Activity.SEARCHING_WOUNDED
 
         # increase when we no longer find unknown places
-        self.force_field_size = int(round(200/self.REDUCTION_COEF))
+        self.force_field_size = int(round(300/self.REDUCTION_COEF))
         self.count_no_unknown_found = 0
         self.MAX_BEFORE_INCREASE = 5
 
         self.last_v_pos_x, self.last_v_pos_y = 0, 0
         self.last_angle = 0
         # #print(self.last_v_pos_x, self.last_v_pos_y)
-        self.MAX_CONSECUTIVE_COUNTER = 3
+        self.MAX_CONSECUTIVE_COUNTER = 2
 
         self.counter = 0
         self.temp_backtrack_counter = 0
@@ -288,7 +288,7 @@ class MyForceDrone(DroneAbstract):
             math.exp(-ForceConstants.DRONE_DAMP *
                      distance/(self.size_area[0]))*0
         f = Vector(amplitude, angle-np.pi)  # repulsive : angle-pi'''
-        print(distance)
+        #print(distance)
         if distance > 55:
             f = Vector()  # null : angle
         else:
@@ -370,6 +370,7 @@ class MyForceDrone(DroneAbstract):
         return total_force, need_to_grasp
 
     def force_unknown_from_map(self, pos_x, pos_y, orientation):
+        
         forces = []
         target = [-1, -1]
 
@@ -392,6 +393,7 @@ class MyForceDrone(DroneAbstract):
         bool_neg_wall_x = True
         bool_neg_wall_y = True
         found_unknown = False
+        '''
         for dx in range(self.force_field_size, 0, -1):
             if dx + pos_x < len(self.map):
                 if self.map[pos_x + dx, pos_y] == self.MapState.UNKNOWN:
@@ -490,7 +492,9 @@ class MyForceDrone(DroneAbstract):
             else:
                 target[0] = pos_x
                 target[1] = ymin + pos_y
+
         # #print(target)
+        
         if target != [-1, -1]:
 
             dx = target[0]-pos_x
@@ -508,7 +512,186 @@ class MyForceDrone(DroneAbstract):
             if self.count_no_unknown_found == self.MAX_BEFORE_INCREASE and self.force_field_size <= int(round(max(self.size_area[0], self.size_area[1])/self.REDUCTION_COEF)):
                 self.force_field_size += int(round(50/self.REDUCTION_COEF))
                 self.count_no_unknown_found = 0
+            return Vector()'''
+        def choose_side_a_over_b(da, db, bool_wall_a, bool_wall_b):
+            #Prioritize the side which has something
+            if abs(da) != 10000 and abs(db) == 10000:
+                return True
+            if abs(da) == 10000 and abs(db) != 10000:
+                return False
+            #If the both found an unknown place, we prioritize the one without wall to cross
+            if abs(da) != 10000 and abs(db) != 10000:
+                if not bool_wall_a and bool_wall_b:
+                    return True
+                elif bool_wall_a and not bool_wall_b:
+                    return False
+                else:
+                    #If the both need to cross a wall, we take the nearest one
+                    if abs(da) <= abs(db):
+                        return True
+                    else:
+                        return False
+            #If we did not found anything, it doesn't matter which one we keep
+            return False
+        
+        pos_dxmin = 10000
+        neg_dxmin = -10000
+        pos_dymin = 10000
+        neg_dymin = -10000
+        dxmin = 10000
+        dymin = 10000
+        pos_wall_x = 10000
+        neg_wall_x = -10000
+        pos_wall_y = 10000
+        neg_wall_y = -10000
+        wall_x = 10000
+        wall_y = 10000
+        bool_wall_x = False
+        bool_wall_y = False
+        bool_pos_wall_x = False
+        bool_pos_wall_y = False
+        bool_neg_wall_x = False
+        bool_neg_wall_y = False
+        found_unknown = False
+        while not found_unknown and self.force_field_size < max(self.size_area[0]/self.REDUCTION_COEF,self.size_area[1]/self.REDUCTION_COEF):
+            for dx in range(self.force_field_size, 0, -1):
+                if dx + pos_x < len(self.map):
+                    if self.map[pos_x + dx, pos_y] == self.MapState.UNKNOWN:
+                        pos_dxmin = dx
+                        bool_pos_wall_x = False
+                        found_unknown = True
+
+                    elif self.map[pos_x + dx, pos_y] == self.MapState.WALL and pos_dxmin != 10000:
+                        bool_pos_wall_x = True
+                        pos_wall_x = pos_x + dx
+
+                    elif self.map[pos_x + dx, pos_y] == self.MapState.INIT_RESCUE:
+                        pos_dxmin = 10000
+                        bool_pos_wall_x = False
+                        found_unknown = False
+
+                if -dx + pos_x >= 0:
+                    if self.map[pos_x - dx, pos_y] == self.MapState.UNKNOWN:
+                        neg_dxmin = -dx
+                        bool_neg_wall_x = False
+                        found_unknown = True
+
+                    elif self.map[pos_x - dx, pos_y] == self.MapState.WALL and neg_dxmin != -10000:
+                        bool_neg_wall_x = True
+                        neg_wall_x = pos_x - dx
+
+                    elif self.map[pos_x - dx, pos_y] == self.MapState.INIT_RESCUE:
+                        neg_dxmin = -10000
+                        bool_neg_wall_x = False
+
+                              
+            if choose_side_a_over_b(neg_dxmin, pos_dxmin, bool_neg_wall_x, bool_pos_wall_x):
+                dxmin = neg_dxmin
+                bool_wall_x = bool_neg_wall_x
+                wall_x = neg_wall_x
+            else:
+                dxmin = pos_dxmin
+                bool_wall_y = bool_pos_wall_x
+                wall_x = pos_wall_x
+            # print("dxmin = ", dxmin)
+
+            for dy in range(self.force_field_size, 0, -1):
+                if dy + pos_y < len(self.map[0]):
+                    if self.map[pos_x, pos_y + dy] == self.MapState.UNKNOWN:
+                        pos_dymin = dy
+                        bool_pos_wall_y = False
+                        found_unknown = True
+                    elif self.map[pos_x, pos_y + dy] == self.MapState.WALL and pos_dymin != 10000:
+                        bool_pos_wall_y = True
+                        pos_wall_y = pos_y + dy
+
+                    elif self.map[pos_x, pos_y + dy] == self.MapState.INIT_RESCUE:
+                        pos_dymin = 10000
+                        bool_pos_wall_y = True
+
+                if -dy + pos_y >= 0:
+                    if self.map[pos_x, pos_y - dy] == self.MapState.UNKNOWN:
+                        neg_dymin = -dy
+                        bool_neg_wall_y = False
+                        found_unknown = True 
+                    elif self.map[pos_x, pos_y - dy] == self.MapState.WALL and neg_dymin != -10000:
+                        bool_neg_wall_y = True
+                        neg_wall_y = pos_y - dy
+
+                    elif self.map[pos_x, pos_y - dy] == self.MapState.INIT_RESCUE:
+                        neg_dymin = 10000
+                        bool_neg_wall_y = True
+
+            if choose_side_a_over_b(neg_dymin, pos_dymin, bool_neg_wall_y, bool_pos_wall_y):
+                dymin = neg_dymin
+                bool_wall_y = bool_neg_wall_y
+                wall_y = neg_wall_y
+            else:
+                dymin = pos_dymin
+                bool_wall_y = bool_pos_wall_y
+                wall_y = pos_wall_y
+            
+            #print(found_unknown)
+            if not found_unknown:
+                self.force_field_size += round(50/self.REDUCTION_COEF)
+        # print("dymin = ", dymin)
+        # print(found_unknown, dxmin, dymin, bool_wall_x,
+        #      bool_wall_y, wall_x, wall_y)
+        self.force_field_size = int(round(300/self.REDUCTION_COEF))
+
+        if found_unknown:
+            #print(dxmin,dymin,bool_wall_x,bool_wall_y)
+            
+            if choose_side_a_over_b(dxmin, dymin, bool_wall_x, bool_wall_y):
+
+                if abs(dxmin) != 10000:
+
+                    if bool_wall_x:
+                        target[1] = self.find_end_vertical_wall(
+                            pos_x, pos_y, wall_x)
+                        if target[1] != -1:
+                            target[0] = wall_x
+                    else:
+                        target[0] = dxmin + pos_x
+                        target[1] = pos_y
+                    #print(target, bool_wall_x, wall_x)
+
+            elif abs(dymin) != 10000:
+                if bool_wall_y:
+                    target[0] = self.find_end_horizontal_wall(
+                        pos_x, pos_y, wall_y)
+                    if target[0] != -1:
+                        target[1] = wall_y
+                else:
+                    target[0] = pos_x
+                    target[1] = dymin + pos_y
+                #print(target, bool_wall_y,wall_y)
+
+            self.target = target
+
+            if target != [-1, -1]:
+
+                dx = target[0]-pos_x
+                dy = target[1]-pos_y
+
+                distance = math.sqrt(dx**2 + dy**2)
+                angle_abs = math.atan2(dy, dx)
+                # print("dx = ",dx,"dy = ",dy)
+                # print("Absolute angle = ",angle_abs)
+                angle_rel = angle_abs - orientation
+                # print("Relative angle = ",angle_rel*180/np.pi)
+                return self.unknown_place_force(distance, angle_rel)
+            else:
+                self.count_no_unknown_found += 1
+                if self.count_no_unknown_found == self.MAX_BEFORE_INCREASE and self.force_field_size <= int(round(max(self.size_area[0], self.size_area[1])/self.REDUCTION_COEF)):
+                    self.force_field_size += int(round(50/self.REDUCTION_COEF))
+                    self.count_no_unknown_found = 0
+                return Vector()
+        else:
             return Vector()
+        
+        
+        
 
     class WallType():
         VERTICAL = 10
@@ -820,6 +1003,10 @@ class MyForceDrone(DroneAbstract):
                 self.change_pixel_value(int(x), int(y), self.MapState.EMPTY)
         return
 
+    def clear_map(self):
+        self.map = (self.map == self.MapState.WALL)*self.map + (self.map != self.MapState.WALL)*self.MAP0
+        return
+    
     def update_track(self, pos_x, pos_y, DIST_MIN):
         def distance(p1, p2):
             return ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5
@@ -1027,10 +1214,9 @@ class MyForceDrone(DroneAbstract):
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
             self.state = self.Activity.SEARCHING_WOUNDED
             self.my_track = []
-            self.map = (self.map == self.MapState.WALL)*self.map + \
-                (self.map != self.MapState.WALL)*self.MAP0
+            self.clear_map()
             ##print("Erasing map")
-            self.force_field_size = int(round(200/self.REDUCTION_COEF))
+            self.force_field_size = int(round(300/self.REDUCTION_COEF))
 
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
             self.state = self.Activity.BACK_TRACKING
