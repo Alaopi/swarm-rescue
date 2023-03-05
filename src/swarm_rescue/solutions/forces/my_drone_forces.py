@@ -18,7 +18,7 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 # from spg.src.spg.agent.communicator import Communicator
 
-print_map = True
+print_map = False
 
 
 class ForceConstants():
@@ -102,6 +102,8 @@ class MyForceDrone(DroneAbstract):
         self.MAX_CONSECUTIVE_COUNTER = 3
 
         self.counter = 0
+        self.temp_backtrack_counter = 0
+        self.temp_backtrack_THRESHOLD = 40
 
         self.Behavior = self.behavior.NOMINAL
 
@@ -563,7 +565,8 @@ class MyForceDrone(DroneAbstract):
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
-        right_is_not_corner = self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL)
+        right_is_not_corner = self.is_not_corner(
+            pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL)
         if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and right_is_not_corner:
             xright = x
             # print("Horizontal Wall Right")
@@ -578,13 +581,17 @@ class MyForceDrone(DroneAbstract):
                 consecutive_counter += 1
             else:
                 consecutive_counter = 0
-        left_is_not_corner = self.is_not_corner(pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL)
+        left_is_not_corner = self.is_not_corner(
+            pos_x, pos_y, x, ywall, self.WallType.HORIZONTAL)
         if consecutive_counter == self.MAX_CONSECUTIVE_COUNTER and left_is_not_corner:
             xleft = x
             # print("Horizontal Wall Left")
 
-        if (not left_is_not_corner) and (not left_is_not_corner):
+        if (not left_is_not_corner) and (not left_is_not_corner) and self.counter > 5:
             self.state = self.Activity.TEMP_BACK_TRACKING
+            self.temp_backtrack_THRESHOLD = random.choice([30, 40, 50])
+            self.temp_backtrack_counter = 0
+            self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
             print("Temporary backtrack")
 
         if abs(xleft-pos_x) < abs(xright - pos_x):
@@ -810,12 +817,12 @@ class MyForceDrone(DroneAbstract):
     def update_track(self, pos_x, pos_y, DIST_MIN):
         def distance(p1, p2):
             return ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5
-        
+
         for i in range(len(self.my_track)):
-            if distance((pos_x,pos_y), self.my_track[i]) < DIST_MIN:
+            if distance((pos_x, pos_y), self.my_track[i]) < DIST_MIN:
                 self.my_track = self.my_track[:i+1]
                 break
-        
+
         self.my_track.append((pos_x, pos_y))
 
     def optimize_track(self, VAR_THRESHOLD):
@@ -980,7 +987,7 @@ class MyForceDrone(DroneAbstract):
                    "grasper": 0}
 
         #self.stuck_movement += self.odometer_values()[0]
-        
+
         if self.counter % 15 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
             POS_THRESHOLD = 0.8
             nb_consecutive_positions = 5
@@ -1008,21 +1015,23 @@ class MyForceDrone(DroneAbstract):
             self.state = self.Activity.BACK_TRACKING
 
         elif self.state is self.Activity.BACK_TRACKING and found_rescue_center:
-            #print("DROPPING_AT_RESCUE_CENTER")
+            # print("DROPPING_AT_RESCUE_CENTER")
             self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
 
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
             self.state = self.Activity.SEARCHING_WOUNDED
             self.my_track = []
-            self.map = (self.map == self.MapState.WALL)*self.map + (self.map != self.MapState.WALL)*self.MAP0
+            self.map = (self.map == self.MapState.WALL)*self.map + \
+                (self.map != self.MapState.WALL)*self.MAP0
             #print("Erasing map")
             self.force_field_size = int(round(200/self.REDUCTION_COEF))
-        
+
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
             self.state = self.Activity.BACK_TRACKING
 
-        elif self.state is self.Activity.TEMP_BACK_TRACKING and found_rescue_center:
+        elif self.state is self.Activity.TEMP_BACK_TRACKING and (self.temp_backtrack_counter > self.temp_backtrack_THRESHOLD):
             print("Searching wounded")
+            self.temp_backtrack_counter = 0
             self.state = self.Activity.SEARCHING_WOUNDED
 
         if self.role == self.Role.FOLLOWER:
@@ -1049,8 +1058,10 @@ class MyForceDrone(DroneAbstract):
 
             dist_traveled, alpha, theta = self.odometer_values()
             # print("Odometer values: ", dist_traveled, alpha, theta)
-            v_pos_x = self.last_v_pos_x + dist_traveled * math.cos(alpha + self.last_angle)
-            v_pos_y = self.last_v_pos_y + dist_traveled * math.sin(alpha + self.last_angle)
+            v_pos_x = self.last_v_pos_x + dist_traveled * \
+                math.cos(alpha + self.last_angle)
+            v_pos_y = self.last_v_pos_y + dist_traveled * \
+                math.sin(alpha + self.last_angle)
             orientation = self.last_angle + theta
             # print("*", pos_x, pos_y, orientation)
 
@@ -1096,7 +1107,7 @@ class MyForceDrone(DroneAbstract):
         start1 = time.time()
         if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
             if self.state is self.Activity.SEARCHING_WOUNDED:
-                self.update_track(pos_x,pos_y, 3)
+                self.update_track(pos_x, pos_y, 3)
                 start = time.time()
                 force, need_to_grasp = self.total_force_with_semantic(
                     detection_semantic, pos_x, pos_y, orientation)
@@ -1121,7 +1132,7 @@ class MyForceDrone(DroneAbstract):
                            "lateral": 0,
                            "rotation": 0,
                            "grasper": 1}
-                print("Backtracking")
+                # print("Backtracking")
                 if len(self.my_track) > 0:
                     target = self.my_track[-1]
                     force = self.track_force(pos_x, pos_y, orientation, target)
@@ -1137,8 +1148,6 @@ class MyForceDrone(DroneAbstract):
                                    "grasper": 1}
                     if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
                         self.my_track.pop()
-            
-                    
 
             if self.state is self.Activity.TEMP_BACK_TRACKING:
                 command = {"forward": 0,
@@ -1146,10 +1155,12 @@ class MyForceDrone(DroneAbstract):
                            "rotation": 0,
                            "grasper": 0}
 
+                self.temp_backtrack_counter += 1
+
                 if len(self.my_track) > 0:
                     target = self.my_track[-1]
                     force = self.track_force(pos_x, pos_y, orientation, target)
-                    #Just to check if we can stop the temporary backtracking
+                    # Just to check if we can stop the temporary backtracking
                     self.force_unknown_from_map(pos_x, pos_y, orientation)
                     force_norm = force.norm()
                     if force_norm != 0:
@@ -1193,7 +1204,6 @@ class MyForceDrone(DroneAbstract):
                                "rotation": lateral_force,
                                "grasper": 1}
                 '''
-
 
         else:
             command = {"forward": 0,
