@@ -18,7 +18,7 @@ from spg_overlay.utils.utils import normalize_angle
 from spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
 # from spg.src.spg.agent.communicator import Communicator
 
-print_map = False
+print_map = True
 
 
 class ForceConstants():
@@ -74,7 +74,7 @@ class MyForceDrone(DroneAbstract):
             for y in range(int(round(self.size_area[1]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[1]/2)/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
                 self.map[x, y] = 0
 
-        self.MAP0 = self.map
+        self.MAP0 = np.copy(self.map)
 
         self.x_shift = int(round(self.size_area[0]/self.REDUCTION_COEF))
         self.y_shift = int(round(self.size_area[1]/self.REDUCTION_COEF))
@@ -771,6 +771,7 @@ class MyForceDrone(DroneAbstract):
 
     def empty_ray(self, pos_x, pos_y, dx, dy):
         # Algo to write empty in all the cases crossed by the sensor's ray
+        ray_length = math.sqrt(dx**2+dy**2)
         x = pos_x
         y = pos_y
         stepX = np.sign(dx)
@@ -795,9 +796,9 @@ class MyForceDrone(DroneAbstract):
             else:
                 tMaxY += tDeltaY
                 y += stepY
-            # if self.map[int(x)][int(y)] != self.MapState.WALL or tMaxX < 0.6 or tMaxY < 0.6:
-            # self.map[int(x)][int(y)] = self.MapState.EMPTY
-            self.change_pixel_value(int(x), int(y), self.MapState.EMPTY)
+            current_length = math.sqrt((x-pos_x)**2+(y-pos_y)**2)
+            if self.map[int(x)][int(y)] != self.MapState.WALL or current_length < 0.8*ray_length:
+                self.change_pixel_value(int(x), int(y), self.MapState.EMPTY)
         return
 
     def optimize_track(self, VAR_THRESHOLD):
@@ -963,7 +964,7 @@ class MyForceDrone(DroneAbstract):
 
         #self.stuck_movement += self.odometer_values()[0]
 
-        if self.counter % 5 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
+        if self.counter % 15 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
             POS_THRESHOLD = 0.8
             nb_consecutive_positions = 5
             pos_set = self.stuck_pos
@@ -995,7 +996,9 @@ class MyForceDrone(DroneAbstract):
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
             self.state = self.Activity.SEARCHING_WOUNDED
             self.my_track = []
-            self.map = self.MAP0
+            self.map = (self.map == self.MapState.WALL)*self.map + (self.map != self.MapState.WALL)*self.MAP0
+            print("Erasing map")
+            self.force_field_size = int(round(200/self.REDUCTION_COEF))
 
         if self.role == self.Role.FOLLOWER:
             self.state is self.Activity.FOLLOWING
@@ -1020,10 +1023,8 @@ class MyForceDrone(DroneAbstract):
 
             dist_traveled, alpha, theta = self.odometer_values()
             # print("Odometer values: ", dist_traveled, alpha, theta)
-            v_pos_x = int(round(self.last_v_pos_x + dist_traveled *
-                                math.cos(alpha + self.last_angle)))
-            v_pos_y = int(round(self.last_v_pos_y + dist_traveled *
-                                math.sin(alpha + self.last_angle)))
+            v_pos_x = self.last_v_pos_x + dist_traveled * math.cos(alpha + self.last_angle)
+            v_pos_y = self.last_v_pos_y + dist_traveled * math.sin(alpha + self.last_angle)
             orientation = self.last_angle + theta
             # print("*", pos_x, pos_y, orientation)
 
