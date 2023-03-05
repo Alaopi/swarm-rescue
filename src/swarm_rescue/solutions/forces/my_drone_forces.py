@@ -774,7 +774,7 @@ class MyForceDrone(DroneAbstract):
 
         if (not left_is_not_corner) and (not left_is_not_corner) and self.counter > 5:
             self.state = self.Activity.TEMP_BACK_TRACKING
-            self.temp_backtrack_THRESHOLD = random.choice([35, 45, 50])
+            self.temp_backtrack_THRESHOLD = random.choice([20, 30, 40, 50])
             self.temp_backtrack_counter = 0
             self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
             #print("Temporary backtrack")
@@ -1218,12 +1218,12 @@ class MyForceDrone(DroneAbstract):
                 # #print("DROPPING_AT_RESCUE_CENTER")
                 self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
 
-        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
-            self.state = self.Activity.SEARCHING_WOUNDED
-            self.my_track = []
-            self.clear_map()
-            ##print("Erasing map")
-            self.force_field_size = int(round(300/self.REDUCTION_COEF))
+            elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
+                self.state = self.Activity.SEARCHING_WOUNDED
+                self.my_track = []
+                self.clear_map()
+                ##print("Erasing map")
+                self.force_field_size = int(round(300/self.REDUCTION_COEF))
 
             elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
                 self.state = self.Activity.BACK_TRACKING
@@ -1276,17 +1276,17 @@ class MyForceDrone(DroneAbstract):
             self.last_angle = orientation
             # #print(pos_x, pos_y, orientation)
 
-            start = time.time()
+            #start = time.time()
 
-            if self.counter % 3 == 0:
+            if self.counter % 5 == 0:
                 self.receive_maps()
-            end = time.time()
+            #end = time.time()
             # #print("Receive maps : ", end-start)
 
-            start = time.time()
-            if self.counter % 3 == 0:
+            #start = time.time()
+            if self.counter % 4 == 0:
                 self.update_map(detection_semantic, pos_x, pos_y, orientation)
-            end = time.time()
+            #end = time.time()
             # #print("Update maps : ", end-start)
 
             ########### PLOT ###########
@@ -1303,14 +1303,14 @@ class MyForceDrone(DroneAbstract):
                 # #print("Update map : ", end-start)
 
             ########### END PLOT ##########
-            start1 = time.time()
+            #start1 = time.time()
             if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
                 if self.state is self.Activity.SEARCHING_WOUNDED:
                     self.update_track(pos_x, pos_y, 3)
-                    start = time.time()
+                    #start = time.time()
                     force, need_to_grasp = self.total_force_with_semantic(
                         detection_semantic, pos_x, pos_y, orientation)
-                    end = time.time()
+                    #end = time.time()
                     # #print("Total forces : ", end-start)
                     force_norm = force.norm()
                     if force_norm != 0:
@@ -1432,7 +1432,7 @@ class MyForceDrone(DroneAbstract):
                                # We try to align the force and the front side of the drone
                                "rotation": lateral_force,
                                "grasper": 0}
-            end1 = time.time()
+            #end1 = time.time()
             # #print("Time 1 : ", end1-start1)
             # #print(self.map[pos_x-10:pos_x + 10, pos_y-10:pos_y + 10])
             self.last_angle = orientation
