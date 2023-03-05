@@ -270,9 +270,11 @@ class MyForceDrone(DroneAbstract):
                 math.exp(-ForceConstants.WALL_DAMP *
                          distance/self.size_area[0])
             f = Vector(amplitude, angle-np.pi)  # repulsive : angle-Pi
-        else self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
+        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
             amplitude = ForceConstants.RESCUE_AMP * distance
             f = Vector(amplitude, angle)  # attractive : angle-Pi
+        else :
+            f = Vector()
         return f
 
     def unknown_place_force(self, distance, angle):
