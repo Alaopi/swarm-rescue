@@ -83,6 +83,7 @@ class MyForceDrone(DroneAbstract):
 
         self.NB_DRONES = misc_data.number_drones
         self.my_track = []
+        self.retrack = []
 
         self.stuck_movement = 100
         self.stuck_timer = 0
@@ -153,6 +154,7 @@ class MyForceDrone(DroneAbstract):
         DROPPING_AT_RESCUE_CENTER = 4
         FOLLOWING = 5
         TEMP_BACK_TRACKING = 6
+        RETRACKING = 7
 
     class Role(Enum):  # Possible values of self.state which gives the current action of the drone
         """
@@ -1213,11 +1215,12 @@ class MyForceDrone(DroneAbstract):
             self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
 
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
-            self.state = self.Activity.SEARCHING_WOUNDED
+            '''self.state = self.Activity.SEARCHING_WOUNDED
             self.my_track = []
             self.clear_map()
             ##print("Erasing map")
-            self.force_field_size = int(round(300/self.REDUCTION_COEF))
+            self.force_field_size = int(round(300/self.REDUCTION_COEF))'''
+            self.state = self.Activity.RETRACKING
 
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
             self.state = self.Activity.BACK_TRACKING
@@ -1340,7 +1343,31 @@ class MyForceDrone(DroneAbstract):
                                    "rotation": lateral_force,
                                    "grasper": 1}
                     if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
-                        self.my_track.pop()
+                        self.retrack.append(self.my_track.pop())
+
+            if self.state is self.Activity.RETRACKING:
+                command = {"forward": 0,
+                           "lateral": 0,
+                           "rotation": 0,
+                           "grasper": 0}
+                # #print("Backtracking")
+                if len(self.retrack) > 0:
+                    target = self.retrack[-1]
+                    force = self.track_force(pos_x, pos_y, orientation, target)
+                    force_norm = force.norm()
+                    if force_norm != 0:
+                        forward_force = force.x/force_norm
+                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                        lateral_force = force.y/force_norm
+                        command = {"forward": forward_force,
+                                   "lateral": lateral_force,
+                                   # We try to align the force and the front side of the drone
+                                   "rotation": lateral_force,
+                                   "grasper": 0}
+                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
+                        self.my_track.append(self.retrack.pop())
+                else :
+                    self.state = self.Activity.SEARCHING_WOUNDED
 
             if self.state is self.Activity.TEMP_BACK_TRACKING:
                 command = {"forward": 0,
