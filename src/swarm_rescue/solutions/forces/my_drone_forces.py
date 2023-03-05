@@ -73,7 +73,7 @@ class MyForceDrone(DroneAbstract):
         for x in range(int(round(self.size_area[0]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
             for y in range(int(round(self.size_area[1]/2/self.REDUCTION_COEF)) - self.EXTRA_SIZE, 3*(int(round(self.size_area[1]/2)/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
                 self.map[x, y] = 0
-        
+
         self.MAP0 = self.map
 
         self.x_shift = int(round(self.size_area[0]/self.REDUCTION_COEF))
@@ -513,11 +513,9 @@ class MyForceDrone(DroneAbstract):
 
         def is_still_wall():
             return self.map[xwall, y] is self.MapState.WALL \
-            or self.map[xwall, y-1] is self.MapState.WALL \
-            or self.map[xwall, y+1] is self.MapState.WALL 
-           
-           
-        
+                or self.map[xwall, y-1] is self.MapState.WALL \
+                or self.map[xwall, y+1] is self.MapState.WALL
+
         while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and y < 3*int(round(self.size_area[1]/2/self.REDUCTION_COEF) + self.EXTRA_SIZE)):
             y += 1
             if not is_still_wall():
@@ -555,9 +553,8 @@ class MyForceDrone(DroneAbstract):
         def is_still_wall():
             return self.map[x, ywall] == self.MapState.WALL \
                 or self.map[x-1, ywall] == self.MapState.WALL \
-                or self.map[x+1, ywall] == self.MapState.WALL 
-                
-        
+                or self.map[x+1, ywall] == self.MapState.WALL
+
         while(consecutive_counter < self.MAX_CONSECUTIVE_COUNTER and x < 3*(int(round(self.size_area[0]/2)/self.REDUCTION_COEF)) + self.EXTRA_SIZE):
             x += 1
             if not is_still_wall():
@@ -590,37 +587,37 @@ class MyForceDrone(DroneAbstract):
             return xright
 
     def is_not_corner(self, pos_x, pos_y, x, y, from_wall_type):
-        
+
         if from_wall_type is self.WallType.VERTICAL:
-            print("Checking vertical...")
+            #print("Checking vertical...")
             x_to_check = x-np.sign(x-pos_x)*int(round(20/self.REDUCTION_COEF))
 
             consecutive_counter = 0
-            print(range(y, pos_y, np.sign(pos_y - y)))
+            #print(range(y, pos_y, np.sign(pos_y - y)))
             for y_to_check in range(y, pos_y, np.sign(pos_y - y)):
-                print(x_to_check,y_to_check)
+                #print(x_to_check, y_to_check)
                 if self.map[x_to_check, y_to_check] == self.MapState.WALL:
                     consecutive_counter += 1
-                    print("Wall")
+                    # print("Wall")
                 if consecutive_counter == 1:
-                    print(False)
+                    # print(False)
                     return False
-                print(True)
+                # print(True)
             return True
         else:
-            print("Checking horizontal...")
+            #print("Checking horizontal...")
             y_to_check = y-np.sign(y-pos_y)*self.MAX_CONSECUTIVE_COUNTER
             consecutive_counter = 0
-            print(range(x, pos_x, np.sign(pos_x - x)))
+            #print(range(x, pos_x, np.sign(pos_x - x)))
             for x_to_check in range(x, pos_x, np.sign(pos_x - x)):
-                print(x_to_check,y_to_check)
+                #print(x_to_check, y_to_check)
                 if self.map[x_to_check, y_to_check] == self.MapState.WALL:
-                    print("Wall")
+                    # print("Wall")
                     consecutive_counter += 1
                 if consecutive_counter == 1:
-                    print(False)
+                    # print(False)
                     return False
-            print(True)
+            # print(True)
             return True
 
     def wall_force_lidar(self, the_lidar_sensor, sem_detected_angles, sem_resolution):
@@ -821,6 +818,31 @@ class MyForceDrone(DroneAbstract):
         #      nb_erased*nb_consecutive_positions)
         return new_track
 
+    ''' FAIT PAR ALEX - NE MARCHE PAS
+    def smooth_track(self, VAR_THRESHOLD):
+        i = len(self.my_track)-2
+        nb_elim = 0
+        print("Points in total :", len(self.my_track))
+
+        def distance(p1, p2):
+            return ((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)**0.5
+
+        while i > 0:
+            near_j = i
+            for j in range(len(self.my_track)-2, i, -1):
+                if distance(self.my_track[i], self.my_track[j]) < VAR_THRESHOLD:
+                    near_j = j
+            k = i
+            while k < near_j-1:
+                print(k+1)
+                self.my_track.pop(k+1)
+                nb_elim += 1
+                near_j -= 1
+            i -= 1
+        print("Points eliminated : ", nb_elim)
+        '''
+
+
 ################### END MAPPING ###########################
 
 ################### BACKUP BEHAVIOR (ANT) #####################
@@ -940,8 +962,6 @@ class MyForceDrone(DroneAbstract):
                    "grasper": 0}
 
         #self.stuck_movement += self.odometer_values()[0]
-        s_pos_x, s_pos_y = self.measured_gps_position()
-        self.update_last_pos(s_pos_x, s_pos_y)
 
         if self.counter % 5 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
             POS_THRESHOLD = 0.8
@@ -957,12 +977,19 @@ class MyForceDrone(DroneAbstract):
 
         #STUCK_THRESHOLD = 5
         STUCK_TIMER = 80
+        found_rescue_center = False
+        best_angle = 1000
+        for data in self.semantic().get_sensor_values():
+            if data.entity_type == DroneSemanticSensor.TypeEntity.RESCUE_CENTER:
+                found_rescue_center = True
+                best_angle = data.angle
 
         if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
             self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
+            # self.smooth_track(VAR_THRESHOLD=5)
             self.state = self.Activity.BACK_TRACKING
 
-        elif self.state is self.Activity.BACK_TRACKING and len(self.my_track) == 0:
+        elif self.state is self.Activity.BACK_TRACKING and found_rescue_center:
             self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
 
         elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
@@ -1085,11 +1112,18 @@ class MyForceDrone(DroneAbstract):
                         self.my_track.pop()
 
             if self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
-                command = {"forward": 0,
-                           "lateral": 0,
-                           "rotation": 0,
-                           "grasper": 1}
+                # simple P controller
+                # The robot will turn until best_angle is 0
+                kp = 2.0
+                a = kp * best_angle
+                a = min(a, 1.0)
+                a = max(a, -1.0)
 
+                command = {"forward": 1,
+                           "lateral": 0,
+                           "rotation": a,
+                           "grasper": 1}
+                '''
                 force = self.total_force_with_semantic(
                     detection_semantic, pos_x, pos_y, orientation)[0]
 
@@ -1105,6 +1139,7 @@ class MyForceDrone(DroneAbstract):
                                # We try to align the force and the front side of the drone
                                "rotation": lateral_force,
                                "grasper": 1}
+                '''
         else:
             command = {"forward": 0,
                        "lateral": 0,
@@ -1136,6 +1171,7 @@ class MyForceDrone(DroneAbstract):
         self.last_angle = orientation
         self.last_v_pos_x = v_pos_x
         self.last_v_pos_y = v_pos_y
+        self.update_last_pos(v_pos_x, v_pos_y)
         if self.role is self.Role.LEADER:
             self.position_leader = [v_pos_x, v_pos_y]
         self.counter += 1

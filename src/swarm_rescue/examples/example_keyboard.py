@@ -3,6 +3,13 @@ This program can be launched directly.
 To move the drone, you have to click on the map, then use the arrows on the keyboard
 """
 
+from spg_overlay.utils.misc_data import MiscData
+from spg_overlay.gui_map.map_abstract import MapAbstract
+from spg_overlay.gui_map.gui_sr import GuiSR
+from spg_overlay.gui_map.closed_playground import ClosedPlayground
+from spg_overlay.entities.wounded_person import WoundedPerson
+from spg_overlay.entities.rescue_center import RescueCenter, wounded_rescue_center_collision
+from spg_overlay.entities.drone_abstract import DroneAbstract
 import os
 import sys
 import numpy as np
@@ -11,15 +18,8 @@ from typing import List, Type
 from spg.utils.definitions import CollisionTypes
 
 # This line add, to sys.path, the path to parent path of this file
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from spg_overlay.entities.drone_abstract import DroneAbstract
-from spg_overlay.entities.rescue_center import RescueCenter, wounded_rescue_center_collision
-from spg_overlay.entities.wounded_person import WoundedPerson
-from spg_overlay.gui_map.closed_playground import ClosedPlayground
-from spg_overlay.gui_map.gui_sr import GuiSR
-from spg_overlay.gui_map.map_abstract import MapAbstract
-from spg_overlay.utils.misc_data import MiscData
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
 
 
 class MyDroneKeyboard(DroneAbstract):
@@ -52,7 +52,8 @@ class MyMapKeyboard(MapAbstract):
         self._rescue_center = RescueCenter(size=(100, 100))
         self._rescue_center_pos = ((0, 100), 0)
 
-        self._wounded_persons_pos = [(200, 0), (-200, 0), (200, -200), (-200, -200)]
+        self._wounded_persons_pos = [
+            (200, 0), (-200, 0), (200, -200), (-200, -200)]
         self._number_wounded_persons = len(self._wounded_persons_pos)
         self._wounded_persons: List[WoundedPerson] = []
 
@@ -112,9 +113,9 @@ def main():
     # draw_touch : enable the visualization of the touch sensor
     gui = GuiSR(playground=playground,
                 the_map=my_map,
-                draw_lidar=True,
+                draw_lidar=False,
                 draw_semantic=True,
-                draw_touch=True,
+                draw_touch=False,
                 use_keyboard=True,
                 )
     gui.run()
