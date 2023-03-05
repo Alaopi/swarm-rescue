@@ -94,7 +94,7 @@ class MyForceDrone(DroneAbstract):
         self.state = self.Activity.SEARCHING_WOUNDED
 
         # increase when we no longer find unknown places
-        self.force_field_size = int(round(300/self.REDUCTION_COEF))
+        self.force_field_size = int(round(350/self.REDUCTION_COEF))
         self.count_no_unknown_found = 0
         self.MAX_BEFORE_INCREASE = 5
 
@@ -251,7 +251,6 @@ class MyForceDrone(DroneAbstract):
 ################### FORCES #########################
 
     # Definition of the various forces used to control the drone
-
 
     def wall_force(self, distance, angle):
 
@@ -596,7 +595,7 @@ class MyForceDrone(DroneAbstract):
 
         if (not left_is_not_corner) and (not left_is_not_corner) and self.counter > 5:
             self.state = self.Activity.TEMP_BACK_TRACKING
-            self.temp_backtrack_THRESHOLD = random.choice([30, 40, 50])
+            self.temp_backtrack_THRESHOLD = random.choice([35, 45, 50])
             self.temp_backtrack_counter = 0
             self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
             #print("Temporary backtrack")
@@ -984,272 +983,286 @@ class MyForceDrone(DroneAbstract):
 
 ################### END BACKUP BEHAVIOR (ANT) #####################
 
+
     def control(self):
-        """
-        The drone will behave differently according to its current state
-        """
-        command = {"forward": 0,
-                   "lateral": 0,
-                   "rotation": 0,  # We try to align the force and the front side of the drone
-                   "grasper": 0}
-
-        #self.stuck_movement += self.odometer_values()[0]
-
-        if self.counter % 10 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
-            POS_THRESHOLD = 0.9
-            nb_consecutive_positions = 5
-            pos_set = self.stuck_pos
-            var_x = np.var([pos[0] for pos in pos_set])
-            var_y = np.var([pos[1] for pos in pos_set])
-            # #print("Var : ", var_x, var_y)
-            if var_x < POS_THRESHOLD and var_y < POS_THRESHOLD:
-                #print("Entering ANT MODE")
-                self.random_sign = random.choice([-1, 1])
-                self.Behavior = self.behavior.BACKUP
-
-        #STUCK_THRESHOLD = 5
-        STUCK_TIMER = 70
-        found_rescue_center = False
-        best_angle = 1000
-        for data in self.semantic().get_sensor_values():
-            if data.entity_type == DroneSemanticSensor.TypeEntity.RESCUE_CENTER:
-                found_rescue_center = True
-                best_angle = data.angle
-
-        if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
-            self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
-            # self.smooth_track(VAR_THRESHOLD=5)
-            self.state = self.Activity.BACK_TRACKING
-
-        elif self.state is self.Activity.BACK_TRACKING and found_rescue_center and len(self.my_track) < 5:
-            # #print("DROPPING_AT_RESCUE_CENTER")
-            self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
-
-        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
-            self.state = self.Activity.SEARCHING_WOUNDED
-            self.my_track = []
-            self.map = (self.map == self.MapState.WALL)*self.map + \
-                (self.map != self.MapState.WALL)*self.MAP0
-            ##print("Erasing map")
-            self.force_field_size = int(round(300/self.REDUCTION_COEF))
-
-        elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
-            self.state = self.Activity.BACK_TRACKING
-
-        elif self.state is self.Activity.TEMP_BACK_TRACKING and (self.temp_backtrack_counter > self.temp_backtrack_THRESHOLD):
-            #print("Searching wounded")
-            self.temp_backtrack_counter = 0
-            self.state = self.Activity.SEARCHING_WOUNDED
-
-        if self.role == self.Role.FOLLOWER:
-            self.state is self.Activity.FOLLOWING
-
-        '''
-        if self.counter % 10 == 0 and self.counter > 0:
-            if self.Behavior == self.behavior.NOMINAL and self.stuck_movement < STUCK_THRESHOLD:
-                #print("SWITCHING BEHAVIOR TO ANT")
-                self.stuck_movement = STUCK_THRESHOLD
-                self.random_sign = random.choice([-1, 1])
-                self.Behavior = self.behavior.BACKUP
-            self.stuck_movement = 0
-        '''
-        if self.Behavior == self.behavior.BACKUP and self.stuck_timer > STUCK_TIMER:
-            #print("SWITCHING BEHAVIOR TO NOMINAL")
-            self.stuck_timer = 0
-            self.Behavior = self.behavior.NOMINAL
-
-        detection_semantic = self.semantic().get_sensor_values()
-
-        # perte de signal GPS
-        if self.measured_gps_position() is None or self.measured_compass_angle() is None:
-
-            dist_traveled, alpha, theta = self.odometer_values()
-            # #print("Odometer values: ", dist_traveled, alpha, theta)
-            v_pos_x = self.last_v_pos_x + dist_traveled * \
-                math.cos(alpha + self.last_angle)
-            v_pos_y = self.last_v_pos_y + dist_traveled * \
-                math.sin(alpha + self.last_angle)
-            orientation = self.last_angle + theta
-            # #print("*", pos_x, pos_y, orientation)
+        # in case the drone is deactivated
+        # print(self.semantic().get_sensor_values())
+        if len(self.semantic().get_sensor_values()) != 0 and math.isnan(self.semantic().get_sensor_values()[0].distance):
+            command = {"forward": 1,
+                       "lateral": 0,
+                       "rotation": 0,
+                       "grasper": 0}
 
         else:
-            v_pos_x, v_pos_y = self.measured_gps_position()
-            orientation = self.measured_compass_angle()
+            """
+            The drone will behave differently according to its current state
+            """
+            command = {"forward": 0,
+                       "lateral": 0,
+                       "rotation": 0,  # We try to align the force and the front side of the drone
+                       "grasper": 0}
 
-        pos_x = int(round(v_pos_x/self.REDUCTION_COEF)) + \
-            self.x_shift  # index of the drone in the map
-        pos_y = int(round(v_pos_y/self.REDUCTION_COEF)) + self.y_shift
-        self.last_v_pos_x = v_pos_x
-        self.last_v_pos_y = v_pos_y
-        self.last_angle = orientation
-        # #print(pos_x, pos_y, orientation)
+            #self.stuck_movement += self.odometer_values()[0]
 
-        start = time.time()
+            if self.counter % 10 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
+                POS_THRESHOLD = 0.9
+                nb_consecutive_positions = 5
+                pos_set = self.stuck_pos
+                var_x = np.var([pos[0] for pos in pos_set])
+                var_y = np.var([pos[1] for pos in pos_set])
+                # #print("Var : ", var_x, var_y)
+                if var_x < POS_THRESHOLD and var_y < POS_THRESHOLD:
+                    #print("Entering ANT MODE")
+                    self.random_sign = random.choice([-1, 1])
+                    self.Behavior = self.behavior.BACKUP
 
-        if self.counter % 3 == 0:
-            self.receive_maps()
-        end = time.time()
-        # #print("Receive maps : ", end-start)
+            #STUCK_THRESHOLD = 5
+            STUCK_TIMER = 70
+            found_rescue_center = False
+            best_angle = 1000
+            for data in self.semantic().get_sensor_values():
+                if data.entity_type == DroneSemanticSensor.TypeEntity.RESCUE_CENTER:
+                    found_rescue_center = True
+                    best_angle = data.angle
 
-        start = time.time()
-        if self.counter % 3 == 0:
-            self.update_map(detection_semantic, pos_x, pos_y, orientation)
-        end = time.time()
-        # #print("Update maps : ", end-start)
+            if self.state is self.Activity.SEARCHING_WOUNDED and self.base.grasper.grasped_entities:
+                self.my_track = self.optimize_track(VAR_THRESHOLD=0.5)
+                # self.smooth_track(VAR_THRESHOLD=5)
+                self.state = self.Activity.BACK_TRACKING
 
-        ########### PLOT ###########
-        if print_map:
-            if self.counter % 100 == 0:
+            elif self.state is self.Activity.BACK_TRACKING and found_rescue_center and len(self.my_track) < 5:
+                # #print("DROPPING_AT_RESCUE_CENTER")
+                self.state = self.Activity.DROPPING_AT_RESCUE_CENTER
 
-                plt.pcolormesh(self.map.T)
-                plt.colorbar()
-                plt.show()
-                plt.close()
+            elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not self.base.grasper.grasped_entities:
+                self.state = self.Activity.SEARCHING_WOUNDED
+                self.my_track = []
+                self.map = (self.map == self.MapState.WALL)*self.map + \
+                    (self.map != self.MapState.WALL)*self.MAP0
+                ##print("Erasing map")
+                self.force_field_size = int(round(350/self.REDUCTION_COEF))
 
-                plt.show()
-                plt.close()
-            # #print("Update map : ", end-start)
+            elif self.state is self.Activity.DROPPING_AT_RESCUE_CENTER and not found_rescue_center:
+                self.state = self.Activity.BACK_TRACKING
 
-        ########### END PLOT ##########
-        start1 = time.time()
-        if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
-            if self.state is self.Activity.SEARCHING_WOUNDED:
-                self.update_track(pos_x, pos_y, 3)
-                start = time.time()
-                force, need_to_grasp = self.total_force_with_semantic(
-                    detection_semantic, pos_x, pos_y, orientation)
-                end = time.time()
-                # #print("Total forces : ", end-start)
+            elif self.state is self.Activity.TEMP_BACK_TRACKING and (self.temp_backtrack_counter > self.temp_backtrack_THRESHOLD):
+                #print("Searching wounded")
+                self.temp_backtrack_counter = 0
+                self.state = self.Activity.SEARCHING_WOUNDED
+
+            if self.role == self.Role.FOLLOWER:
+                self.state is self.Activity.FOLLOWING
+
+            '''
+            if self.counter % 10 == 0 and self.counter > 0:
+                if self.Behavior == self.behavior.NOMINAL and self.stuck_movement < STUCK_THRESHOLD:
+                    #print("SWITCHING BEHAVIOR TO ANT")
+                    self.stuck_movement = STUCK_THRESHOLD
+                    self.random_sign = random.choice([-1, 1])
+                    self.Behavior = self.behavior.BACKUP
+                self.stuck_movement = 0
+            '''
+            if self.Behavior == self.behavior.BACKUP and self.stuck_timer > STUCK_TIMER:
+                #print("SWITCHING BEHAVIOR TO NOMINAL")
+                self.stuck_timer = 0
+                self.Behavior = self.behavior.NOMINAL
+
+            detection_semantic = self.semantic().get_sensor_values()
+
+            # perte de signal GPS
+            if self.measured_gps_position() is None or self.measured_compass_angle() is None:
+
+                dist_traveled, alpha, theta = self.odometer_values()
+                # #print("Odometer values: ", dist_traveled, alpha, theta)
+                v_pos_x = self.last_v_pos_x + dist_traveled * \
+                    math.cos(alpha + self.last_angle)
+                v_pos_y = self.last_v_pos_y + dist_traveled * \
+                    math.sin(alpha + self.last_angle)
+                orientation = self.last_angle + theta
+                # #print("*", pos_x, pos_y, orientation)
+
+            else:
+                v_pos_x, v_pos_y = self.measured_gps_position()
+                orientation = self.measured_compass_angle()
+
+            pos_x = int(round(v_pos_x/self.REDUCTION_COEF)) + \
+                self.x_shift  # index of the drone in the map
+            pos_y = int(round(v_pos_y/self.REDUCTION_COEF)) + self.y_shift
+            self.last_v_pos_x = v_pos_x
+            self.last_v_pos_y = v_pos_y
+            self.last_angle = orientation
+            # #print(pos_x, pos_y, orientation)
+
+            start = time.time()
+
+            if self.counter % 3 == 0:
+                self.receive_maps()
+            end = time.time()
+            # #print("Receive maps : ", end-start)
+
+            start = time.time()
+            if self.counter % 3 == 0:
+                self.update_map(detection_semantic, pos_x, pos_y, orientation)
+            end = time.time()
+            # #print("Update maps : ", end-start)
+
+            ########### PLOT ###########
+            if print_map:
+                if self.counter % 100 == 0:
+
+                    plt.pcolormesh(self.map.T)
+                    plt.colorbar()
+                    plt.show()
+                    plt.close()
+
+                    plt.show()
+                    plt.close()
+                # #print("Update map : ", end-start)
+
+            ########### END PLOT ##########
+            start1 = time.time()
+            if self.role == self.Role.LEADER or self.role == self.Role.NEUTRAL:
+                if self.state is self.Activity.SEARCHING_WOUNDED:
+                    self.update_track(pos_x, pos_y, 3)
+                    start = time.time()
+                    force, need_to_grasp = self.total_force_with_semantic(
+                        detection_semantic, pos_x, pos_y, orientation)
+                    end = time.time()
+                    # #print("Total forces : ", end-start)
+                    force_norm = force.norm()
+                    if force_norm != 0:
+                        forward_force = force.x/force_norm
+                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                        lateral_force = force.y/force_norm
+
+                        command = {"forward": forward_force,
+                                   "lateral": lateral_force,
+                                   # We try to align the force and the front side of the drone
+                                   "rotation": lateral_force,
+                                   "grasper": 0}
+                    if need_to_grasp:
+                        command["grasper"] = 1
+
+                if self.state is self.Activity.BACK_TRACKING:
+                    command = {"forward": 0,
+                               "lateral": 0,
+                               "rotation": 0,
+                               "grasper": 1}
+                    # #print("Backtracking")
+                    if len(self.my_track) > 0:
+                        target = self.my_track[-1]
+                        force = self.track_force(
+                            pos_x, pos_y, orientation, target)
+                        force_norm = force.norm()
+                        if force_norm != 0:
+                            forward_force = force.x/force_norm
+                            # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                            lateral_force = force.y/force_norm
+                            command = {"forward": forward_force,
+                                       "lateral": lateral_force,
+                                       # We try to align the force and the front side of the drone
+                                       "rotation": lateral_force,
+                                       "grasper": 1}
+                        if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
+                            self.my_track.pop()
+
+                if self.state is self.Activity.TEMP_BACK_TRACKING:
+                    command = {"forward": 0,
+                               "lateral": 0,
+                               "rotation": 0,
+                               "grasper": 0}
+                    # print(len(self.my_track))
+                    self.temp_backtrack_counter += 1
+
+                    if len(self.my_track) > 0:
+                        target = self.my_track[-1]
+                        force = self.track_force(
+                            pos_x, pos_y, orientation, target)
+                        # Just to check if we can stop the temporary backtracking
+                        self.force_unknown_from_map(pos_x, pos_y, orientation)
+                        force_norm = force.norm()
+                        if force_norm != 0:
+                            forward_force = force.x/force_norm
+                            # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                            lateral_force = force.y/force_norm
+                            command = {"forward": forward_force,
+                                       "lateral": lateral_force,
+                                       # We try to align the force and the front side of the drone
+                                       "rotation": lateral_force,
+                                       "grasper": 1}
+                        if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 30/self.REDUCTION_COEF:
+                            self.my_track.pop()
+
+                if self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
+                    # simple P controller
+                    # The robot will turn until best_angle is 0
+                    kp = 2.0
+                    a = kp * best_angle
+                    a = min(a, 1.0)
+                    a = max(a, -1.0)
+
+                    command = {"forward": 1,
+                               "lateral": 0,
+                               "rotation": a,
+                               "grasper": 1}
+
+                    force = self.total_force_with_semantic(
+                        detection_semantic, pos_x, pos_y, orientation)[0]
+
+                    # #print("Total forces : ", end-start)
+                    force_norm = force.norm()
+                    if force_norm != 0:
+                        forward_force = force.x/force_norm
+                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                        lateral_force = force.y/force_norm
+
+                        command = {"forward": forward_force,
+                                   "lateral": lateral_force,
+                                   # We try to align the force and the front side of the drone
+                                   "rotation": a,
+                                   "grasper": 1}
+
+            else:
+                command = {"forward": 0,
+                           "lateral": 0,
+                           "rotation": 0,
+                           "grasper": 0}
+
+                target = self.position_leader
+                target[0] = int(
+                    round(target[0]/self.REDUCTION_COEF))+self.x_shift
+                target[1] = int(
+                    round(target[1]/self.REDUCTION_COEF))+self.y_shift
+                # #print(target)
+                force = self.follow_force(pos_x, pos_y, orientation, target)
+                # #print(force.x,force.y)
+                force.add_vector(self.total_force_with_semantic(
+                    detection_semantic, pos_x, pos_y, orientation)[0])
+                # #print(force.x,force.y)
                 force_norm = force.norm()
                 if force_norm != 0:
                     forward_force = force.x/force_norm
                     # To check : +pi/2 should be left of the drone, and right should be lateral>0
                     lateral_force = force.y/force_norm
-
                     command = {"forward": forward_force,
                                "lateral": lateral_force,
                                # We try to align the force and the front side of the drone
                                "rotation": lateral_force,
                                "grasper": 0}
-                if need_to_grasp:
-                    command["grasper"] = 1
+            end1 = time.time()
+            # #print("Time 1 : ", end1-start1)
+            # #print(self.map[pos_x-10:pos_x + 10, pos_y-10:pos_y + 10])
+            self.last_angle = orientation
+            self.last_v_pos_x = v_pos_x
+            self.last_v_pos_y = v_pos_y
+            self.update_last_pos(v_pos_x, v_pos_y)
+            if self.role is self.Role.LEADER:
+                self.position_leader = [v_pos_x, v_pos_y]
+            self.counter += 1
+            # #print(command)
 
-            if self.state is self.Activity.BACK_TRACKING:
-                command = {"forward": 0,
-                           "lateral": 0,
-                           "rotation": 0,
-                           "grasper": 1}
-                # #print("Backtracking")
-                if len(self.my_track) > 0:
-                    target = self.my_track[-1]
-                    force = self.track_force(pos_x, pos_y, orientation, target)
-                    force_norm = force.norm()
-                    if force_norm != 0:
-                        forward_force = force.x/force_norm
-                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
-                        lateral_force = force.y/force_norm
-                        command = {"forward": forward_force,
-                                   "lateral": lateral_force,
-                                   # We try to align the force and the front side of the drone
-                                   "rotation": lateral_force,
-                                   "grasper": 1}
-                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
-                        self.my_track.pop()
+            if self.Behavior == self.behavior.BACKUP:
+                self.stuck_timer += 1
+                command = self.control_wall(command)
 
-            if self.state is self.Activity.TEMP_BACK_TRACKING:
-                command = {"forward": 0,
-                           "lateral": 0,
-                           "rotation": 0,
-                           "grasper": 0}
-
-                self.temp_backtrack_counter += 1
-
-                if len(self.my_track) > 0:
-                    target = self.my_track[-1]
-                    force = self.track_force(pos_x, pos_y, orientation, target)
-                    # Just to check if we can stop the temporary backtracking
-                    self.force_unknown_from_map(pos_x, pos_y, orientation)
-                    force_norm = force.norm()
-                    if force_norm != 0:
-                        forward_force = force.x/force_norm
-                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
-                        lateral_force = force.y/force_norm
-                        command = {"forward": forward_force,
-                                   "lateral": lateral_force,
-                                   # We try to align the force and the front side of the drone
-                                   "rotation": lateral_force,
-                                   "grasper": 1}
-                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 30/self.REDUCTION_COEF:
-                        self.my_track.pop()
-
-            if self.state is self.Activity.DROPPING_AT_RESCUE_CENTER:
-                # simple P controller
-                # The robot will turn until best_angle is 0
-                kp = 2.0
-                a = kp * best_angle
-                a = min(a, 1.0)
-                a = max(a, -1.0)
-
-                command = {"forward": 1,
-                           "lateral": 0,
-                           "rotation": a,
-                           "grasper": 1}
-
-                force = self.total_force_with_semantic(
-                    detection_semantic, pos_x, pos_y, orientation)[0]
-
-                # #print("Total forces : ", end-start)
-                force_norm = force.norm()
-                if force_norm != 0:
-                    forward_force = force.x/force_norm
-                    # To check : +pi/2 should be left of the drone, and right should be lateral>0
-                    lateral_force = force.y/force_norm
-
-                    command = {"forward": forward_force,
-                               "lateral": lateral_force,
-                               # We try to align the force and the front side of the drone
-                               "rotation": a,
-                               "grasper": 1}
-
-        else:
-            command = {"forward": 0,
-                       "lateral": 0,
-                       "rotation": 0,
-                       "grasper": 0}
-
-            target = self.position_leader
-            target[0] = int(round(target[0]/self.REDUCTION_COEF))+self.x_shift
-            target[1] = int(round(target[1]/self.REDUCTION_COEF))+self.y_shift
-            # #print(target)
-            force = self.follow_force(pos_x, pos_y, orientation, target)
-            # #print(force.x,force.y)
-            force.add_vector(self.total_force_with_semantic(
-                detection_semantic, pos_x, pos_y, orientation)[0])
-            # #print(force.x,force.y)
-            force_norm = force.norm()
-            if force_norm != 0:
-                forward_force = force.x/force_norm
-                # To check : +pi/2 should be left of the drone, and right should be lateral>0
-                lateral_force = force.y/force_norm
-                command = {"forward": forward_force,
-                           "lateral": lateral_force,
-                           # We try to align the force and the front side of the drone
-                           "rotation": lateral_force,
-                           "grasper": 0}
-        end1 = time.time()
-        # #print("Time 1 : ", end1-start1)
-        # #print(self.map[pos_x-10:pos_x + 10, pos_y-10:pos_y + 10])
-        self.last_angle = orientation
-        self.last_v_pos_x = v_pos_x
-        self.last_v_pos_y = v_pos_y
-        self.update_last_pos(v_pos_x, v_pos_y)
-        if self.role is self.Role.LEADER:
-            self.position_leader = [v_pos_x, v_pos_y]
-        self.counter += 1
-        # #print(command)
-
-        if self.Behavior == self.behavior.BACKUP:
-            self.stuck_timer += 1
-            command = self.control_wall(command)
-
-        return command
+            return command
