@@ -63,10 +63,11 @@ class MyForceDrone(DroneAbstract):
                          misc_data=misc_data,
                          should_display_lidar=False,
                          **kwargs)
-        #print(self.identifier)
+        # print(self.identifier)
 
         self.REDUCTION_COEF = 8
-        self.EXTRA_SIZE = -2
+        #self.EXTRA_SIZE = int(round(5/self.REDUCTION_COEF))*0
+        self.EXTRA_SIZE = -3
         self.map = - \
             np.ones((int(round(self.size_area[0]*2/self.REDUCTION_COEF)), int(round(
                     self.size_area[1]*2/self.REDUCTION_COEF))))
@@ -297,15 +298,15 @@ class MyForceDrone(DroneAbstract):
         return f
 
     def wounded_force(self, distance, angle, grasped):
-        if (not grasped) :
+        if (not grasped):
             amplitude = ForceConstants.WOUNDED_AMP*distance
             f = Vector(amplitude, angle)  # attractive : angle
-        else : 
+        else:
             if distance > 80:
                 f = Vector()  # null : angle
             else:
                 f = Vector(ForceConstants.WOUNDED_AMP*distance *
-                        0, angle-np.pi)  # repulsive : angle-pi
+                           0, angle-np.pi)  # repulsive : angle-pi
         return f
 
     def track_force(self, pos_x, pos_y, orientation, target):
@@ -1181,8 +1182,8 @@ class MyForceDrone(DroneAbstract):
 
         #self.stuck_movement += self.odometer_values()[0]
 
-        if self.counter % 15 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
-            POS_THRESHOLD = 0.8
+        if self.counter % 10 == 0 and self.Behavior == self.behavior.NOMINAL and self.counter > 0:
+            POS_THRESHOLD = 0.9
             nb_consecutive_positions = 5
             pos_set = self.stuck_pos
             var_x = np.var([pos[0] for pos in pos_set])
@@ -1194,7 +1195,7 @@ class MyForceDrone(DroneAbstract):
                 self.Behavior = self.behavior.BACKUP
 
         #STUCK_THRESHOLD = 5
-        STUCK_TIMER = 80
+        STUCK_TIMER = 70
         found_rescue_center = False
         best_angle = 1000
         for data in self.semantic().get_sensor_values():
@@ -1379,7 +1380,7 @@ class MyForceDrone(DroneAbstract):
                            "lateral": 0,
                            "rotation": a,
                            "grasper": 1}
-                
+
                 force = self.total_force_with_semantic(
                     detection_semantic, pos_x, pos_y, orientation)[0]
 
@@ -1395,7 +1396,6 @@ class MyForceDrone(DroneAbstract):
                                # We try to align the force and the front side of the drone
                                "rotation": a,
                                "grasper": 1}
-                
 
         else:
             command = {"forward": 0,
