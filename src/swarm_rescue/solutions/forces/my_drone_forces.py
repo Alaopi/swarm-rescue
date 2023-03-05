@@ -1329,27 +1329,27 @@ class MyForceDrone(DroneAbstract):
                     if need_to_grasp:
                         command["grasper"] = 1
 
-            if self.state is self.Activity.BACK_TRACKING:
-                command = {"forward": 0,
-                           "lateral": 0,
-                           "rotation": 0,
-                           "grasper": 1}
-                # #print("Backtracking")
-                if len(self.my_track) > 0:
-                    target = self.my_track[-1]
-                    force = self.track_force(pos_x, pos_y, orientation, target)
-                    force_norm = force.norm()
-                    if force_norm != 0:
-                        forward_force = force.x/force_norm
-                        # To check : +pi/2 should be left of the drone, and right should be lateral>0
-                        lateral_force = force.y/force_norm
-                        command = {"forward": forward_force,
-                                   "lateral": lateral_force,
-                                   # We try to align the force and the front side of the drone
-                                   "rotation": lateral_force,
-                                   "grasper": 1}
-                    if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
-                        self.my_track.pop()
+                if self.state is self.Activity.BACK_TRACKING:
+                    command = {"forward": 0,
+                            "lateral": 0,
+                            "rotation": 0,
+                            "grasper": 1}
+                    # #print("Backtracking")
+                    if len(self.my_track) > 0:
+                        target = self.my_track[-1]
+                        force = self.track_force(pos_x, pos_y, orientation, target)
+                        force_norm = force.norm()
+                        if force_norm != 0:
+                            forward_force = force.x/force_norm
+                            # To check : +pi/2 should be left of the drone, and right should be lateral>0
+                            lateral_force = force.y/force_norm
+                            command = {"forward": forward_force,
+                                    "lateral": lateral_force,
+                                    # We try to align the force and the front side of the drone
+                                    "rotation": lateral_force,
+                                    "grasper": 1}
+                        if math.sqrt((pos_x-target[0])**2 + (pos_y-target[1])**2) < 8:
+                            self.my_track.pop()
 
 
                 if self.state is self.Activity.TEMP_BACK_TRACKING:
